@@ -19,6 +19,20 @@ const Post = sequelize.define('Post', {
     allowNull: false,
     defaultValue: 0,
   },
+  today_comment_count: {
+    type: integerType,
+    allowNull: false,
+    defaultValue: 0,
+  },
+  phone_today: {
+    type: integerType,
+    allowNull: false,
+    defaultValue: 0,
+  },
+  stats_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  },
   created_at: {
     type: DataTypes.DATE,
     allowNull: false,
@@ -32,6 +46,11 @@ const Post = sequelize.define('Post', {
 }, {
   tableName: 'posts',
   timestamps: false,
+  indexes: [
+    { fields: ['today_comment_count'] },
+    { fields: ['phone_today'] },
+    { fields: ['stats_date'] },
+  ],
 });
 
 Post.associate = (models) => {

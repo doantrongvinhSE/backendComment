@@ -1,6 +1,6 @@
 const { Comment, Post, UserPost } = require('../models');
 const realtimeService = require('./realtimeService');
-const { countTodayComments, countTodayPhones } = require('./postService');
+const { todayDateKey } = require('./postService');
 
 function presentPost(post) {
   return {
@@ -10,6 +10,39 @@ function presentPost(post) {
     created_at: post.created_at,
     updated_at: post.updated_at,
   };
+}
+
+function hasPhone(phone) {
+  return typeof phone === 'string' && phone.trim() !== '';
+}
+
+function isToday(date) {
+  return todayDateKey(date) === todayDateKey();
+}
+
+async function incrementTodayStats(post, comment) {
+  const commentDate = new Date(comment.timestamp);
+
+  if (!isToday(commentDate)) {
+    return {
+      todayCommentCount: post.today_comment_count,
+      phoneToday: post.phone_today,
+    };
+  }
+
+  const today = todayDateKey();
+  const baseTodayCommentCount = post.stats_date === today ? post.today_comment_count : 0;
+  const basePhoneToday = post.stats_date === today ? post.phone_today : 0;
+  const todayCommentCount = baseTodayCommentCount + 1;
+  const phoneToday = basePhoneToday + (hasPhone(comment.phone) ? 1 : 0);
+
+  await post.update({
+    today_comment_count: todayCommentCount,
+    phone_today: phoneToday,
+    stats_date: today,
+  });
+
+  return { todayCommentCount, phoneToday };
 }
 
 async function listPostsForIngest(query = {}) {
@@ -72,10 +105,7 @@ async function ingestCommentsBulk({ fb_post_id: fbPostId, comments = [] }) {
       post_id: post.id,
     });
     createdCount += 1;
-    const [todayCommentCount, phoneToday] = await Promise.all([
-      countTodayComments(post.id),
-      countTodayPhones(post.id),
-    ]);
+    const { todayCommentCount, phoneToday } = await incrementTodayStats(post, createdComment);
 
     userPosts.forEach((userPost) => {
       realtimeService.emitToRoom(`user:${userPost.user_id}`, 'comment.created', {

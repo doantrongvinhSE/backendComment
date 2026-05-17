@@ -177,6 +177,56 @@ test('POST /ingest/comments/bulk emit realtime comment.created theo từng user 
   ]);
 });
 
+test('POST /ingest/comments/bulk tăng cache stats cho comment hôm nay và bỏ qua comment cũ', async () => {
+  const post = await Post.create({ fb_post_id: 'fb_cache_stats', last_count: 5 });
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  await request(app)
+    .post('/ingest/comments/bulk')
+    .send(ingestPayload({
+      fb_post_id: 'fb_cache_stats',
+      comments: [
+        { id: 'cache_today_phone', uid: 'uid_cache_1', phone: '0900000001', timestamp: now.toISOString() },
+        { id: 'cache_today_blank', uid: 'uid_cache_2', phone: '   ', timestamp: now.toISOString() },
+        { id: 'cache_old_phone', uid: 'uid_cache_3', phone: '0900000002', timestamp: yesterday.toISOString() },
+      ],
+    }))
+    .expect(200);
+
+  await post.reload();
+  expect(post.today_comment_count).toBe(2);
+  expect(post.phone_today).toBe(1);
+  expect(post.stats_date).toBe(now.toISOString().slice(0, 10));
+});
+
+test('POST /ingest/comments/bulk reset cache cũ trước khi tăng comment hôm nay', async () => {
+  const post = await Post.create({
+    fb_post_id: 'fb_cache_reset',
+    last_count: 5,
+    today_comment_count: 20,
+    phone_today: 8,
+    stats_date: '2020-01-01',
+  });
+  const now = new Date();
+
+  await request(app)
+    .post('/ingest/comments/bulk')
+    .send(ingestPayload({
+      fb_post_id: 'fb_cache_reset',
+      comments: [
+        { id: 'cache_reset_today', uid: 'uid_cache_reset', phone: '0900000001', timestamp: now.toISOString() },
+      ],
+    }))
+    .expect(200);
+
+  await post.reload();
+  expect(post.today_comment_count).toBe(1);
+  expect(post.phone_today).toBe(1);
+  expect(post.stats_date).toBe(now.toISOString().slice(0, 10));
+});
+
 test('POST /ingest/comments/bulk trả 409 khi comment id đã tồn tại và không update fields cũ', async () => {
   const post = await Post.create({ fb_post_id: 'fb_ingest_duplicate_existing', last_count: 1 });
   await Comment.create({

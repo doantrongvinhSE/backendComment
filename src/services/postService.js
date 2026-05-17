@@ -50,6 +50,14 @@ function invalidFilterResponse() {
   return { status: 400, body: { success: false, message: 'Tham số lọc không hợp lệ' } };
 }
 
+function todayDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 function todayRange() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -91,7 +99,20 @@ async function countTodayPhones(postId) {
   return comments.filter((comment) => comment.phone.trim() !== '').length;
 }
 
-function presentUserPost(userPost, todayCommentCount, phoneToday) {
+function cachedStats(post) {
+  if (!post || post.stats_date !== todayDateKey()) {
+    return { todayCommentCount: 0, phoneToday: 0 };
+  }
+
+  return {
+    todayCommentCount: post.today_comment_count,
+    phoneToday: post.phone_today,
+  };
+}
+
+function presentUserPost(userPost) {
+  const { todayCommentCount, phoneToday } = cachedStats(userPost.post);
+
   return {
     id: userPost.id,
     title: userPost.title,
@@ -162,15 +183,8 @@ function parsePostSort(query = {}) {
   return { sortBy, sortOrder };
 }
 
-async function presentUserPosts(userPosts) {
-  return Promise.all(userPosts.map(async (userPost) => {
-    const [todayCommentCount, phoneToday] = await Promise.all([
-      countTodayComments(userPost.post_id),
-      countTodayPhones(userPost.post_id),
-    ]);
-
-    return presentUserPost(userPost, todayCommentCount, phoneToday);
-  }));
+function presentUserPosts(userPosts) {
+  return userPosts.map(presentUserPost);
 }
 
 async function createUserPost(userId, { title, originalLink }) {
@@ -236,36 +250,19 @@ async function listUserPosts(userId, query) {
 
   const total = await UserPost.count({ where: filters.where });
 
-  if (['today_comment_count', 'phone_today'].includes(sort.sortBy)) {
-    const allUserPosts = await UserPost.findAll({
-      where: filters.where,
-      include: [{ model: Post, as: 'post' }],
-    });
-    const allPosts = await presentUserPosts(allUserPosts);
-    const direction = sort.sortOrder === 'asc' ? 1 : -1;
-    const posts = allPosts
-      .sort((a, b) => (a[sort.sortBy] - b[sort.sortBy]) * direction)
-      .slice(pagination.offset, pagination.offset + pagination.limit);
-
-    return {
-      status: 200,
-      body: {
-        success: true,
-        data: { posts },
-        pagination: paginationMeta(pagination.page, pagination.limit, total),
-      },
-    };
-  }
+  const order = ['today_comment_count', 'phone_today'].includes(sort.sortBy)
+    ? [[{ model: Post, as: 'post' }, sort.sortBy, sort.sortOrder.toUpperCase()]]
+    : [[sort.sortBy, sort.sortOrder.toUpperCase()]];
 
   const userPosts = await UserPost.findAll({
     where: filters.where,
     include: [{ model: Post, as: 'post' }],
-    order: [[sort.sortBy, sort.sortOrder.toUpperCase()]],
+    order,
     limit: pagination.limit,
     offset: pagination.offset,
   });
 
-  const posts = await presentUserPosts(userPosts);
+  const posts = presentUserPosts(userPosts);
 
   return {
     status: 200,
@@ -287,12 +284,7 @@ async function getUserPost(userId, userPostId) {
     return notFoundResponse();
   }
 
-  const [todayCommentCount, phoneToday] = await Promise.all([
-    countTodayComments(userPost.post_id),
-    countTodayPhones(userPost.post_id),
-  ]);
-
-  return { status: 200, body: { success: true, data: presentUserPost(userPost, todayCommentCount, phoneToday) } };
+  return { status: 200, body: { success: true, data: presentUserPost(userPost) } };
 }
 
 async function updateUserPost(userId, userPostId, body) {
@@ -379,4 +371,5 @@ module.exports = {
   deleteUserPost,
   countTodayComments,
   countTodayPhones,
+  todayDateKey,
 };

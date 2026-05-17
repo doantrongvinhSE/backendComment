@@ -725,13 +725,8 @@ test('GET /me/posts sort theo today_comment_count', async () => {
 
   const lowPost = await UserPost.findByPk(lowResponse.body.data.id);
   const highPost = await UserPost.findByPk(highResponse.body.data.id);
-  const now = new Date();
-
-  await Comment.bulkCreate([
-    { id: 'low_count_1', uid: 'uid_low_1', timestamp: now, post_id: lowPost.post_id },
-    { id: 'high_count_1', uid: 'uid_high_1', timestamp: now, post_id: highPost.post_id },
-    { id: 'high_count_2', uid: 'uid_high_2', timestamp: now, post_id: highPost.post_id },
-  ]);
+  await Post.update({ today_comment_count: 1, stats_date: new Date() }, { where: { id: lowPost.post_id } });
+  await Post.update({ today_comment_count: 2, stats_date: new Date() }, { where: { id: highPost.post_id } });
 
   const response = await request(app)
     .get('/me/posts?sort_by=today_comment_count&sort_order=desc')
@@ -761,39 +756,21 @@ test('GET /me/posts từ chối query filter hoặc sort không hợp lệ', asy
     .expect(400);
 });
 
-test('GET /me/posts tính today_comment_count theo comments trong ngày hiện tại', async () => {
+test('GET /me/posts dùng cache thống kê hôm nay trên post', async () => {
   const token = await loginUser();
 
   const createResponse = await request(app)
     .post('/me/posts')
     .set('Authorization', `Bearer ${token}`)
-    .send({ title: 'Post có comment', originalLink: 'https://www.facebook.com/reel/666666666' })
+    .send({ title: 'Post cache', originalLink: 'https://www.facebook.com/reel/777777776' })
     .expect(201);
 
   const userPost = await UserPost.findByPk(createResponse.body.data.id);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+  await Post.update({ today_comment_count: 7, phone_today: 3, stats_date: new Date() }, { where: { id: userPost.post_id } });
 
   await Comment.bulkCreate([
-    {
-      id: 'today_comment_1',
-      uid: 'uid_1',
-      timestamp: today,
-      post_id: userPost.post_id,
-    },
-    {
-      id: 'today_comment_2',
-      uid: 'uid_2',
-      timestamp: today,
-      post_id: userPost.post_id,
-    },
-    {
-      id: 'old_comment',
-      uid: 'uid_3',
-      timestamp: yesterday,
-      post_id: userPost.post_id,
-    },
+    { id: 'cache_old_1', uid: 'uid_cache_1', timestamp: new Date('2020-01-01T00:00:00.000Z'), post_id: userPost.post_id, phone: '0900000001' },
+    { id: 'cache_old_2', uid: 'uid_cache_2', timestamp: new Date('2020-01-01T00:00:00.000Z'), post_id: userPost.post_id, phone: '0900000002' },
   ]);
 
   const response = await request(app)
@@ -803,31 +780,22 @@ test('GET /me/posts tính today_comment_count theo comments trong ngày hiện t
 
   expect(response.body.data.posts[0]).toMatchObject({
     id: userPost.id,
-    today_comment_count: 2,
+    today_comment_count: 7,
+    phone_today: 3,
   });
 });
 
-test('GET /me/posts tính phone_today theo comments hôm nay có phone', async () => {
+test('GET /me/posts coi cache khác ngày là 0', async () => {
   const token = await loginUser();
 
   const createResponse = await request(app)
     .post('/me/posts')
     .set('Authorization', `Bearer ${token}`)
-    .send({ title: 'Post có phone', originalLink: 'https://www.facebook.com/reel/777777777' })
+    .send({ title: 'Post cache cũ', originalLink: 'https://www.facebook.com/reel/777777775' })
     .expect(201);
 
   const userPost = await UserPost.findByPk(createResponse.body.data.id);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  await Comment.bulkCreate([
-    { id: 'phone_today_1', uid: 'uid_phone_1', timestamp: today, post_id: userPost.post_id, phone: '0900000001' },
-    { id: 'phone_today_2', uid: 'uid_phone_2', timestamp: today, post_id: userPost.post_id, phone: null },
-    { id: 'phone_today_3', uid: 'uid_phone_3', timestamp: today, post_id: userPost.post_id, phone: '' },
-    { id: 'phone_today_4', uid: 'uid_phone_4', timestamp: today, post_id: userPost.post_id, phone: '   ' },
-    { id: 'phone_yesterday', uid: 'uid_phone_5', timestamp: yesterday, post_id: userPost.post_id, phone: '0900000002' },
-  ]);
+  await Post.update({ today_comment_count: 9, phone_today: 4, stats_date: new Date('2020-01-01T00:00:00.000Z') }, { where: { id: userPost.post_id } });
 
   const response = await request(app)
     .get('/me/posts')
@@ -836,7 +804,8 @@ test('GET /me/posts tính phone_today theo comments hôm nay có phone', async (
 
   expect(response.body.data.posts[0]).toMatchObject({
     id: userPost.id,
-    phone_today: 1,
+    today_comment_count: 0,
+    phone_today: 0,
   });
 });
 
@@ -857,13 +826,8 @@ test('GET /me/posts sort theo phone_today', async () => {
 
   const lowPost = await UserPost.findByPk(lowResponse.body.data.id);
   const highPost = await UserPost.findByPk(highResponse.body.data.id);
-  const now = new Date();
-
-  await Comment.bulkCreate([
-    { id: 'low_phone_1', uid: 'uid_low_phone_1', timestamp: now, post_id: lowPost.post_id, phone: '0900000001' },
-    { id: 'high_phone_1', uid: 'uid_high_phone_1', timestamp: now, post_id: highPost.post_id, phone: '0900000002' },
-    { id: 'high_phone_2', uid: 'uid_high_phone_2', timestamp: now, post_id: highPost.post_id, phone: '0900000003' },
-  ]);
+  await Post.update({ phone_today: 1, stats_date: new Date() }, { where: { id: lowPost.post_id } });
+  await Post.update({ phone_today: 2, stats_date: new Date() }, { where: { id: highPost.post_id } });
 
   const response = await request(app)
     .get('/me/posts?sort_by=phone_today&sort_order=desc')
