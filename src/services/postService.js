@@ -120,7 +120,7 @@ function presentUserPost(userPost) {
     today_comment_count: todayCommentCount,
     phone_today: phoneToday,
     created_at: userPost.created_at,
-    updated_at: userPost.updated_at,
+    updated_at: userPost.post.updated_at,
   };
 }
 
@@ -250,7 +250,7 @@ async function listUserPosts(userId, query) {
 
   const total = await UserPost.count({ where: filters.where });
 
-  const order = ['today_comment_count', 'phone_today'].includes(sort.sortBy)
+  const order = ['today_comment_count', 'phone_today', 'updated_at'].includes(sort.sortBy)
     ? [[{ model: Post, as: 'post' }, sort.sortBy, sort.sortOrder.toUpperCase()]]
     : [[sort.sortBy, sort.sortOrder.toUpperCase()]];
 
@@ -338,7 +338,7 @@ async function updateUserPost(userId, userPostId, body) {
   }
 
   const result = await getUserPost(userId, userPost.id);
-  realtimeService.emitToRoom(`user:${userId}`, 'post.updated', { post: result.body.data });
+  realtimeService.emitToRoom(`user:${userId}`, 'post.updated', { post: JSON.parse(JSON.stringify(result.body.data)) });
   return result;
 }
 

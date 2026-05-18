@@ -237,6 +237,8 @@ test('user quản lý CRUD bài viết của chính mình', async () => {
     .expect(201);
 
   const userPostId = createResponse.body.data.id;
+  const post = await Post.findOne({ where: { fb_post_id: '555666777' } });
+  await post.update({ updated_at: new Date('2026-05-14T10:00:00.000Z') });
 
   const listResponse = await request(app)
     .get('/me/posts')
@@ -244,7 +246,11 @@ test('user quản lý CRUD bài viết của chính mình', async () => {
     .expect(200);
 
   expect(listResponse.body.data.posts).toHaveLength(1);
-  expect(listResponse.body.data.posts[0]).toMatchObject({ id: userPostId, title: 'Tiêu đề cũ' });
+  expect(listResponse.body.data.posts[0]).toMatchObject({
+    id: userPostId,
+    title: 'Tiêu đề cũ',
+    updated_at: '2026-05-14T10:00:00.000Z',
+  });
   expect(listResponse.body.data.posts[0].last_count).toBeUndefined();
 
   const detailResponse = await request(app)
@@ -268,6 +274,7 @@ test('user quản lý CRUD bài viết của chính mình', async () => {
     title: 'Tiêu đề mới',
     original_link: 'https://example.com/watch?v=555666777&ref=share',
     phone_today: 0,
+    updated_at: '2026-05-14T10:00:00.000Z',
   });
   expect(updateResponse.body.data.last_count).toBeUndefined();
 
@@ -282,6 +289,7 @@ test('user quản lý CRUD bài viết của chính mình', async () => {
           original_link: 'https://example.com/watch?v=555666777&ref=share',
           today_comment_count: 0,
           phone_today: 0,
+          updated_at: '2026-05-14T10:00:00.000Z',
         }),
       },
     },
@@ -685,6 +693,8 @@ test('GET /me/posts sort theo created_at, updated_at và title', async () => {
     created_at: new Date('2026-05-12T10:00:00.000Z'),
     updated_at: new Date('2026-05-11T10:00:00.000Z'),
   });
+  await Post.update({ updated_at: new Date('2026-05-11T10:00:00.000Z') }, { where: { id: firstPost.post_id } });
+  await Post.update({ updated_at: new Date('2026-05-13T10:00:00.000Z') }, { where: { id: secondPost.post_id } });
 
   const createdResponse = await request(app)
     .get('/me/posts?sort_by=created_at&sort_order=asc')
@@ -698,7 +708,11 @@ test('GET /me/posts sort theo created_at, updated_at và title', async () => {
     .set('Authorization', `Bearer ${token}`)
     .expect(200);
 
-  expect(updatedResponse.body.data.posts.map((post) => post.title)).toEqual(['B title', 'A title']);
+  expect(updatedResponse.body.data.posts.map((post) => post.title)).toEqual(['A title', 'B title']);
+  expect(updatedResponse.body.data.posts.map((post) => post.updated_at)).toEqual([
+    '2026-05-13T10:00:00.000Z',
+    '2026-05-11T10:00:00.000Z',
+  ]);
 
   const titleResponse = await request(app)
     .get('/me/posts?sort_by=title&sort_order=asc')

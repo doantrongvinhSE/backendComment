@@ -92,8 +92,14 @@ async function ingestCommentsBulk({ fb_post_id: fbPostId, comments = [] }) {
 
   const userPosts = await UserPost.findAll({ where: { post_id: post.id }, order: [['id', 'ASC']] });
   let createdCount = 0;
+  let latestCommentTimestamp = null;
 
   for (const comment of comments) {
+    const commentTimestamp = new Date(comment.timestamp);
+    if (!latestCommentTimestamp || commentTimestamp > latestCommentTimestamp) {
+      latestCommentTimestamp = commentTimestamp;
+    }
+
     const createdComment = await Comment.create({
       id: comment.id,
       uid: comment.uid,
@@ -101,7 +107,7 @@ async function ingestCommentsBulk({ fb_post_id: fbPostId, comments = [] }) {
       avatar_user: comment.avatar_user || null,
       content: comment.content || null,
       phone: comment.phone || null,
-      timestamp: new Date(comment.timestamp),
+      timestamp: commentTimestamp,
       post_id: post.id,
     });
     createdCount += 1;
@@ -129,9 +135,14 @@ async function ingestCommentsBulk({ fb_post_id: fbPostId, comments = [] }) {
           id: userPost.id,
           today_comment_count: todayCommentCount,
           phone_today: phoneToday,
+          updated_at: createdComment.timestamp,
         },
       });
     });
+  }
+
+  if (createdCount > 0 && latestCommentTimestamp > post.updated_at) {
+    await post.update({ updated_at: latestCommentTimestamp });
   }
 
   return {

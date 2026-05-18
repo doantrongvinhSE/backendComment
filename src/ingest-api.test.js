@@ -140,6 +140,7 @@ test('POST /ingest/comments/bulk emit realtime comment.created theo từng user 
           id: firstUserPost.id,
           today_comment_count: 1,
           phone_today: 1,
+          updated_at: timestamp,
         },
       },
     },
@@ -171,10 +172,73 @@ test('POST /ingest/comments/bulk emit realtime comment.created theo từng user 
           id: secondUserPost.id,
           today_comment_count: 1,
           phone_today: 1,
+          updated_at: timestamp,
         },
       },
     },
   ]);
+});
+
+test('POST /ingest/comments/bulk chỉ cập nhật posts.updated_at theo timestamp comment mới', async () => {
+  const post = await Post.create({
+    fb_post_id: 'fb_updated_at_single',
+    last_count: 5,
+    updated_at: new Date('2026-05-14T08:00:00.000Z'),
+  });
+  const user = await User.create({ username: 'updated_at_user', password_hash: 'hash', name: 'Updated At User', role: 'USER' });
+  const userPost = await UserPost.create({
+    user_id: user.id,
+    post_id: post.id,
+    title: 'Bài updated_at',
+    original_link: 'https://www.facebook.com/reel/updated-at',
+    updated_at: new Date('2026-05-14T08:00:00.000Z'),
+  });
+
+  await request(app)
+    .post('/ingest/comments/bulk')
+    .send(ingestPayload({
+      fb_post_id: 'fb_updated_at_single',
+      comments: [
+        { id: 'updated_at_single', uid: 'uid_updated_at_single', timestamp: '2026-05-14T10:00:00.000Z' },
+      ],
+    }))
+    .expect(200);
+
+  await post.reload();
+  await userPost.reload();
+  expect(post.updated_at.toISOString()).toBe('2026-05-14T10:00:00.000Z');
+  expect(userPost.updated_at.toISOString()).toBe('2026-05-14T08:00:00.000Z');
+});
+
+test('POST /ingest/comments/bulk không làm lùi posts.updated_at khi comment cũ hơn', async () => {
+  const post = await Post.create({
+    fb_post_id: 'fb_updated_at_older',
+    last_count: 5,
+    updated_at: new Date('2026-05-14T12:00:00.000Z'),
+  });
+  const user = await User.create({ username: 'updated_at_older_user', password_hash: 'hash', name: 'Updated At Older User', role: 'USER' });
+  const userPost = await UserPost.create({
+    user_id: user.id,
+    post_id: post.id,
+    title: 'Bài updated_at cũ hơn',
+    original_link: 'https://www.facebook.com/reel/updated-at-older',
+    updated_at: new Date('2026-05-14T12:00:00.000Z'),
+  });
+
+  await request(app)
+    .post('/ingest/comments/bulk')
+    .send(ingestPayload({
+      fb_post_id: 'fb_updated_at_older',
+      comments: [
+        { id: 'updated_at_older', uid: 'uid_updated_at_older', timestamp: '2026-05-14T10:00:00.000Z' },
+      ],
+    }))
+    .expect(200);
+
+  await post.reload();
+  await userPost.reload();
+  expect(post.updated_at.toISOString()).toBe('2026-05-14T12:00:00.000Z');
+  expect(userPost.updated_at.toISOString()).toBe('2026-05-14T12:00:00.000Z');
 });
 
 test('POST /ingest/comments/bulk tăng cache stats cho comment hôm nay và bỏ qua comment cũ', async () => {
@@ -228,7 +292,11 @@ test('POST /ingest/comments/bulk reset cache cũ trước khi tăng comment hôm
 });
 
 test('POST /ingest/comments/bulk trả 409 khi comment id đã tồn tại và không update fields cũ', async () => {
-  const post = await Post.create({ fb_post_id: 'fb_ingest_duplicate_existing', last_count: 1 });
+  const post = await Post.create({
+    fb_post_id: 'fb_ingest_duplicate_existing',
+    last_count: 1,
+    updated_at: new Date('2026-05-14T08:00:00.000Z'),
+  });
   await Comment.create({
     id: 'comment_existing',
     uid: 'uid_old',
@@ -277,6 +345,7 @@ test('POST /ingest/comments/bulk trả 409 khi comment id đã tồn tại và k
 
   await post.reload();
   expect(post.last_count).toBe(1);
+  expect(post.updated_at.toISOString()).toBe('2026-05-14T08:00:00.000Z');
 });
 
 test('POST /ingest/comments/bulk trả 409 khi payload có comment id trùng nhau', async () => {
