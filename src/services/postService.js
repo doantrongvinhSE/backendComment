@@ -90,6 +90,27 @@ async function countTodayPhones(postId) {
   return comments.filter((comment) => comment.phone.trim() !== '').length;
 }
 
+async function countTodayCommentedPosts(userId) {
+  const userPosts = await UserPost.findAll({ where: { user_id: userId } });
+  const postIds = userPosts.map((userPost) => userPost.post_id);
+
+  if (postIds.length === 0) {
+    return { status: 200, body: { success: true, data: { count: 0 } } };
+  }
+
+  const { start, end } = todayRange();
+  const rows = await Comment.findAll({
+    attributes: ['post_id'],
+    where: {
+      post_id: postIds,
+      timestamp: { [Op.gte]: start, [Op.lt]: end },
+    },
+    group: ['post_id'],
+  });
+
+  return { status: 200, body: { success: true, data: { count: rows.length } } };
+}
+
 function cachedStats(post) {
   if (!post || post.stats_date !== todayDateKey()) {
     return { todayCommentCount: 0, phoneToday: 0 };
@@ -360,6 +381,7 @@ module.exports = {
   getUserPost,
   updateUserPost,
   deleteUserPost,
+  countTodayCommentedPosts,
   countTodayComments,
   countTodayPhones,
   todayDateKey,

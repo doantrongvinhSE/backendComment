@@ -72,6 +72,14 @@ User.associate = (models) => {
     onUpdate: 'RESTRICT',
   });
 
+  User.hasMany(models.Saler, {
+    foreignKey: 'user_id',
+    sourceKey: 'id',
+    as: 'salers',
+    onDelete: 'CASCADE',
+    onUpdate: 'RESTRICT',
+  });
+
   User.hasMany(models.Order, {
     foreignKey: 'user_id',
     sourceKey: 'id',

@@ -14,7 +14,9 @@ test('GET /api-docs.json trả OpenAPI spec cho frontend', async () => {
   expect(response.body.paths).toHaveProperty('/auth/logout-other-devices');
   expect(response.body.paths).toHaveProperty('/auth/password');
   expect(response.body.paths).toHaveProperty('/me/posts');
+  expect(response.body.paths).toHaveProperty('/me/posts/commented-count-today');
   expect(response.body.paths).toHaveProperty('/me/orders');
+  expect(response.body.paths).toHaveProperty('/me/salers');
   expect(response.body.paths).toHaveProperty('/realtime/docs');
   expect(response.body.paths['/realtime/docs'].get.tags).toEqual(['Realtime']);
   expect(response.body.components.securitySchemes).toHaveProperty('bearerAuth');

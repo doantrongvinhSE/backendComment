@@ -25,6 +25,29 @@ async function loginUser(username = 'user1') {
   return response.body.data.token;
 }
 
+async function createPost(token, title, fbPostId) {
+  const response = await request(app)
+    .post('/me/posts')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title, originalLink: `https://www.facebook.com/reel/${fbPostId}` })
+    .expect(201);
+
+  return UserPost.findByPk(response.body.data.id);
+}
+
+async function createComment(post, id, timestamp) {
+  return Comment.create({
+    id,
+    uid: `uid_${id}`,
+    fb_name: `User ${id}`,
+    avatar_user: null,
+    content: `Comment ${id}`,
+    phone: null,
+    timestamp: new Date(timestamp),
+    post_id: post.post_id,
+  });
+}
+
 beforeAll(async () => {
   await sequelize.sync({ force: true });
 });
@@ -749,6 +772,60 @@ test('GET /me/posts sort theo today_comment_count', async () => {
 
   expect(response.body.data.posts.map((post) => post.title)).toEqual(['Nhiều comment', 'Ít comment']);
   expect(response.body.data.posts.map((post) => post.today_comment_count)).toEqual([2, 1]);
+});
+
+test('GET /me/posts/commented-count-today đếm số bài user đang theo dõi có comment hôm nay', async () => {
+  const token = await loginUser('posts_commented_count_owner');
+  const otherToken = await loginUser('posts_commented_count_other');
+
+  const firstPost = await createPost(token, 'Bài 1', '666666661');
+  const secondPost = await createPost(token, 'Bài 2', '666666662');
+  const oldPost = await createPost(token, 'Bài cũ', '666666663');
+  const otherPost = await createPost(otherToken, 'Bài người khác', '666666664');
+  const now = new Date();
+  const todayMorning = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0, 0).toISOString();
+  const todayNoon = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0).toISOString();
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 12, 0, 0).toISOString();
+
+  await createComment(firstPost, 'commented_count_1a', todayMorning);
+  await createComment(firstPost, 'commented_count_1b', todayNoon);
+  await createComment(secondPost, 'commented_count_2', todayNoon);
+  await createComment(oldPost, 'commented_count_old', yesterday);
+  await createComment(otherPost, 'commented_count_hidden', todayNoon);
+
+  const response = await request(app)
+    .get('/me/posts/commented-count-today')
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  expect(response.body).toEqual({
+    success: true,
+    data: { count: 2 },
+  });
+});
+
+test('GET /me/posts/commented-count-today đếm theo ngày Việt Nam ở biên UTC', async () => {
+  jest.useFakeTimers({ now: new Date('2026-05-14T18:00:00.000Z') });
+
+  try {
+    const token = await loginUser('posts_commented_count_vn_boundary');
+    const firstPost = await createPost(token, 'Bài biên 1', '666666665');
+    const secondPost = await createPost(token, 'Bài biên 2', '666666666');
+    const tomorrowPost = await createPost(token, 'Bài ngày mai', '666666667');
+
+    await createComment(firstPost, 'commented_vn_today_early', '2026-05-14T17:30:00.000Z');
+    await createComment(secondPost, 'commented_vn_today_later', '2026-05-15T16:59:59.000Z');
+    await createComment(tomorrowPost, 'commented_vn_tomorrow', '2026-05-15T17:00:00.000Z');
+
+    const response = await request(app)
+      .get('/me/posts/commented-count-today')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(response.body.data.count).toBe(2);
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 test('GET /me/posts từ chối query filter hoặc sort không hợp lệ', async () => {

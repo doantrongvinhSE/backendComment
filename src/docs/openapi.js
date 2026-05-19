@@ -43,6 +43,7 @@ const openApiSpec = {
     { name: 'Posts' },
     { name: 'Comments' },
     { name: 'Orders' },
+    { name: 'Salers' },
     { name: 'Ingest' },
     { name: 'Realtime' },
   ],
@@ -108,6 +109,14 @@ const openApiSpec = {
           phone: { type: 'string', nullable: true, example: '0987654321' },
           timestamp: { type: 'string', format: 'date-time' },
           status: { type: 'string', enum: ['normal', 'fail', 'success', 'is_calling'], example: 'normal' },
+        },
+      },
+      Saler: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer', example: 1 },
+          name_saler: { type: 'string', example: 'Nguyễn A' },
+          username_saler: { type: 'string', example: 'nguyena' },
         },
       },
       Order: {
@@ -348,6 +357,11 @@ const openApiSpec = {
         responses: { 200: { description: 'Danh sách post' }, 400: { description: 'Tham số không hợp lệ' } },
       }),
     },
+    '/me/posts/commented-count-today': {
+      get: bearerOperation(['Posts'], 'Đếm số bài đang theo dõi có comment hôm nay', {
+        responses: { 200: { description: 'Số bài có comment hôm nay' } },
+      }),
+    },
     '/me/posts/{userPostId}': {
       get: bearerOperation(['Posts'], 'Lấy chi tiết post của user', {
         parameters: [{ name: 'userPostId', in: 'path', required: true, schema: { type: 'integer' } }],
@@ -385,6 +399,11 @@ const openApiSpec = {
         parameters: [{ name: 'commentId', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['normal', 'fail', 'success', 'is_calling'] } } } } } },
         responses: { 200: { description: 'Status đã cập nhật' }, 400: { description: 'Status không hợp lệ' }, 404: { description: 'Comment không tồn tại' } },
+      }),
+    },
+    '/me/salers': {
+      get: bearerOperation(['Salers'], 'Lấy danh sách saler của user', {
+        responses: { 200: { description: 'Danh sách saler' } },
       }),
     },
     '/me/orders': {

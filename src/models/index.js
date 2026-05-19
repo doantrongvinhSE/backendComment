@@ -6,8 +6,9 @@ const UserPost = require('./UserPost');
 const Comment = require('./Comment');
 const UserComment = require('./UserComment');
 const Order = require('./Order');
+const Saler = require('./Saler');
 
-const models = { User, UserSession, Post, UserPost, Comment, UserComment, Order };
+const models = { User, UserSession, Post, UserPost, Comment, UserComment, Order, Saler };
 
 Object.values(models).forEach((model) => {
   if (model.associate) {
@@ -24,4 +25,5 @@ module.exports = {
   Comment,
   UserComment,
   Order,
+  Saler,
 };

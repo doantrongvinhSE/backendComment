@@ -8,6 +8,7 @@ router.use(authMiddleware);
 
 router.post('/', postController.createUserPost);
 router.get('/', postController.listUserPosts);
+router.get('/commented-count-today', postController.countTodayCommentedPosts);
 router.get('/:userPostId', postController.getUserPost);
 router.patch('/:userPostId', postController.updateUserPost);
 router.delete('/:userPostId', postController.deleteUserPost);
