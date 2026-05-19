@@ -288,6 +288,28 @@ test('GET /me/comments/count-today đếm comments hôm nay của user', async (
   });
 });
 
+test('GET /me/comments/count-today đếm theo ngày Việt Nam ở biên UTC', async () => {
+  jest.useFakeTimers({ now: new Date('2026-05-14T18:00:00.000Z') });
+
+  try {
+    const { user, token } = await loginUser('comments_count_today_vn_boundary');
+    const { post } = await createTrackedPost(user, 'fb_count_today_vn_boundary', 'Bài biên ngày Việt Nam');
+
+    await createComment(post, 'vn_today_early', '2026-05-14T17:30:00.000Z');
+    await createComment(post, 'vn_today_later', '2026-05-15T16:59:59.000Z');
+    await createComment(post, 'vn_tomorrow', '2026-05-15T17:00:00.000Z');
+
+    const response = await request(app)
+      .get('/me/comments/count-today')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(response.body.data.count).toBe(2);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 test('GET /me/comments?phone=true chỉ trả comments có số điện thoại', async () => {
   const { user, token } = await loginUser('comments_phone_filter_owner');
   const { user: otherUser } = await loginUser('comments_phone_filter_other');

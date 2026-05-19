@@ -2,6 +2,7 @@ const { Op } = require('sequelize');
 const { Comment, UserComment, UserPost } = require('../models');
 const { getPagination, paginationMeta } = require('../utils/pagination');
 const realtimeService = require('./realtimeService');
+const { vietnamTodayRange } = require('../utils/vietnamTime');
 
 function notFoundResponse() {
   return { status: 404, body: { success: false, message: 'Bài viết không tồn tại' } };
@@ -137,13 +138,11 @@ async function countTodayUserComments(userId) {
     return { status: 200, body: { success: true, data: { count: 0 } } };
   }
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const { start, end } = vietnamTodayRange();
   const count = await Comment.count({
     where: {
       post_id: postIds,
-      timestamp: { [Op.gte]: todayStart, [Op.lt]: tomorrowStart },
+      timestamp: { [Op.gte]: start, [Op.lt]: end },
     },
   });
 

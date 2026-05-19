@@ -2,6 +2,7 @@ const { Op } = require('sequelize');
 const { Comment, Post, UserPost } = require('../models');
 const { getPagination, paginationMeta } = require('../utils/pagination');
 const realtimeService = require('./realtimeService');
+const { vietnamDateKey, vietnamTodayRange } = require('../utils/vietnamTime');
 
 function extractPostId(linkPost) {
   if (!linkPost) return null;
@@ -51,21 +52,11 @@ function invalidFilterResponse() {
 }
 
 function todayDateKey(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
+  return vietnamDateKey(date);
 }
 
 function todayRange() {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-
-  return { start, end };
+  return vietnamTodayRange();
 }
 
 async function countTodayComments(postId) {
