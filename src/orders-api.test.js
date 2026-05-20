@@ -32,6 +32,7 @@ function orderPayload(overrides = {}) {
     avatar_customer: 'https://example.com/avatar.jpg',
     phone: '0900000000',
     address: 'Hà Nội',
+    staff: 'Nhân viên A',
     total_price: 150000,
     note: 'Giao buổi sáng',
     ...overrides,
@@ -46,6 +47,7 @@ async function createOrder(user, overrides = {}) {
     avatar_customer: null,
     phone: '0900000000',
     address: 'Hà Nội',
+    staff: null,
     total_price: 150000,
     status: 'pending',
     note: null,
@@ -92,6 +94,7 @@ test('POST /me/orders tạo order riêng của user và emit realtime', async ()
     avatar_customer: 'https://example.com/avatar.jpg',
     phone: '0900000000',
     address: 'Hà Nội',
+    staff: 'Nhân viên A',
     total_price: 150000,
     status: 'pending',
     note: 'Giao buổi sáng',
@@ -113,6 +116,7 @@ test('POST /me/orders tạo order riêng của user và emit realtime', async ()
           customer_name: 'Nguyễn Văn A',
           phone: '0900000000',
           address: 'Hà Nội',
+          staff: 'Nhân viên A',
           total_price: 150000,
           status: 'pending',
           note: 'Giao buổi sáng',
@@ -278,6 +282,7 @@ test('GET /me/orders/:orderId chỉ trả order thuộc user', async () => {
   expect(response.body.data).toMatchObject({
     id: order.id,
     product_name: 'Đơn chi tiết',
+    staff: null,
   });
 
   await request(app)
@@ -294,7 +299,7 @@ test('PATCH /me/orders/:orderId cập nhật order thuộc user và emit realtim
   const response = await request(app)
     .patch(`/me/orders/${order.id}`)
     .set('Authorization', `Bearer ${token}`)
-    .send({ status: 'completed', note: 'Đã giao' })
+    .send({ status: 'completed', note: 'Đã giao', staff: 'Nhân viên B' })
     .expect(200);
 
   expect(response.body.success).toBe(true);
@@ -302,6 +307,7 @@ test('PATCH /me/orders/:orderId cập nhật order thuộc user và emit realtim
     id: order.id,
     status: 'completed',
     note: 'Đã giao',
+    staff: 'Nhân viên B',
   });
   expect(realtimeService.drainEvents()).toEqual([
     {
@@ -312,6 +318,7 @@ test('PATCH /me/orders/:orderId cập nhật order thuộc user và emit realtim
           id: response.body.data.id,
           status: 'completed',
           note: 'Đã giao',
+          staff: 'Nhân viên B',
         }),
       },
     },

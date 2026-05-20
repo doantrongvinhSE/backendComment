@@ -33,6 +33,11 @@ const Order = sequelize.define('Order', {
     type: DataTypes.STRING(255),
     allowNull: false,
   },
+  staff: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    defaultValue: null,
+  },
   total_price: {
     type: DataTypes.INTEGER,
     allowNull: true,

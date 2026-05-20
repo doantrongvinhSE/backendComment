@@ -34,6 +34,7 @@ function createOrder(user, data = {}) {
     avatar_customer: data.avatar_customer === undefined ? null : data.avatar_customer,
     phone: data.phone || '0900000000',
     address: data.address || 'Hà Nội',
+    staff: data.staff === undefined ? undefined : data.staff,
     total_price: data.total_price === undefined ? null : data.total_price,
     status: data.status,
     note: data.note === undefined ? null : data.note,
@@ -48,23 +49,25 @@ test('Order model được export', () => {
 test('tạo Order riêng thuộc user và mặc định status pending', async () => {
   const user = await createUser('order_owner');
 
-  const order = await createOrder(user, { total_price: 150000 });
+  const order = await createOrder(user, { total_price: 150000, staff: 'Nhân viên A' });
 
   expect(order.user_id).toBe(user.id);
   expect(order.product_name).toBe('Áo thun');
   expect(order.customer_name).toBe('Nguyễn Văn A');
   expect(order.phone).toBe('0900000000');
   expect(order.address).toBe('Hà Nội');
+  expect(order.staff).toBe('Nhân viên A');
   expect(order.total_price).toBe(150000);
   expect(order.status).toBe('pending');
 });
 
-test('Order cho phép avatar_customer, total_price và note null', async () => {
+test('Order cho phép avatar_customer, staff, total_price và note null', async () => {
   const user = await createUser('order_nullable');
 
   const order = await createOrder(user);
 
   expect(order.avatar_customer).toBeNull();
+  expect(order.staff).toBeNull();
   expect(order.total_price).toBeNull();
   expect(order.note).toBeNull();
 });
