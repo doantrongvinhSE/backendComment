@@ -8,6 +8,7 @@ router.use(authMiddleware);
 
 router.post('/', orderController.createOrder);
 router.get('/', orderController.listOrders);
+router.get('/export/excel', orderController.exportOrdersExcel);
 router.get('/:orderId', orderController.getOrder);
 router.patch('/:orderId', orderController.updateOrder);
 router.delete('/:orderId', orderController.deleteOrder);

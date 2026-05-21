@@ -1,5 +1,6 @@
 const request = require('supertest');
 const bcrypt = require('bcrypt');
+const ExcelJS = require('exceljs');
 
 process.env.NODE_ENV = 'test';
 process.env.SESSION_DAYS = '30';
@@ -53,6 +54,12 @@ async function createOrder(user, overrides = {}) {
     note: null,
     ...overrides,
   });
+}
+
+async function workbookFromResponse(response) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(response.body);
+  return workbook;
 }
 
 beforeAll(async () => {
@@ -124,6 +131,69 @@ test('POST /me/orders tạo order riêng của user và emit realtime', async ()
       },
     },
   ]);
+});
+
+test('GET /me/orders/export/excel yêu cầu đăng nhập', async () => {
+  await request(app)
+    .get('/me/orders/export/excel')
+    .expect(401);
+});
+
+test('GET /me/orders/export/excel xuất Excel chỉ gồm orders của user hiện tại', async () => {
+  const { user, token } = await loginUser('order_export_owner');
+  const { user: otherUser } = await loginUser('order_export_other');
+
+  await createOrder(user, {
+    product_name: 'Đơn cũ',
+    customer_name: 'Khách cũ',
+    phone: '0900000001',
+    address: 'Hà Nội',
+    note: '120000',
+    created_at: new Date('2026-05-14T08:00:00.000Z'),
+  });
+  await createOrder(user, {
+    product_name: 'Đơn mới',
+    customer_name: 'Khách mới',
+    phone: '0900000002',
+    address: 'Đà Nẵng',
+    note: '250000',
+    created_at: new Date('2026-05-14T09:00:00.000Z'),
+  });
+  await createOrder(otherUser, {
+    product_name: 'Đơn người khác',
+    customer_name: 'Khách khác',
+    phone: '0999999999',
+    address: 'Sài Gòn',
+    note: '999999',
+    created_at: new Date('2026-05-14T10:00:00.000Z'),
+  });
+
+  const response = await request(app)
+    .get('/me/orders/export/excel')
+    .set('Authorization', `Bearer ${token}`)
+    .buffer(true)
+    .parse((res, callback) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => callback(null, Buffer.concat(chunks)));
+    })
+    .expect(200);
+
+  expect(response.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  expect(response.headers['content-disposition']).toMatch(/attachment; filename="don-hang-\d+\.xlsx"/);
+
+  const workbook = await workbookFromResponse(response);
+  const worksheet = workbook.getWorksheet('Đơn hàng') || workbook.worksheets[0];
+
+  expect(worksheet.getCell('B6').value).toBe('Khách mới');
+  expect(worksheet.getCell('C6').value).toBe('0900000002');
+  expect(worksheet.getCell('D6').value).toBe('Đà Nẵng');
+  expect(worksheet.getCell('H6').value).toBe('Đơn mới');
+  expect(worksheet.getCell('J6').value).toBe(250000);
+
+  expect(worksheet.getCell('B7').value).toBe('Khách cũ');
+  expect(worksheet.getCell('H7').value).toBe('Đơn cũ');
+  expect(worksheet.getCell('B8').value).not.toBe('Khách khác');
 });
 
 test('GET /me/orders trả orders của user theo created_at mới nhất trước', async () => {

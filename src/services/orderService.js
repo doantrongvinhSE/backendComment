@@ -161,10 +161,20 @@ async function deleteOrder(userId, orderId) {
   return { status: 200, body: { success: true } };
 }
 
+async function listOrdersForExport(userId) {
+  const orders = await Order.findAll({
+    where: { user_id: userId },
+    order: [['created_at', 'DESC']],
+  });
+
+  return orders.map(presentOrder);
+}
+
 module.exports = {
   createOrder,
   listOrders,
   getOrder,
   updateOrder,
   deleteOrder,
+  listOrdersForExport,
 };
