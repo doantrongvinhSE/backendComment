@@ -900,6 +900,35 @@ test('GET /me/posts coi cache khác ngày là 0', async () => {
   });
 });
 
+test('GET /me/posts sort today_comment_count coi cache khác ngày là 0', async () => {
+  const token = await loginUser('posts_sort_stale_stats');
+
+  const staleResponse = await request(app)
+    .post('/me/posts')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: 'Cache cũ số lớn', originalLink: 'https://www.facebook.com/reel/777777780' })
+    .expect(201);
+
+  const freshResponse = await request(app)
+    .post('/me/posts')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: 'Cache hôm nay số nhỏ', originalLink: 'https://www.facebook.com/reel/777777781' })
+    .expect(201);
+
+  const stalePost = await UserPost.findByPk(staleResponse.body.data.id);
+  const freshPost = await UserPost.findByPk(freshResponse.body.data.id);
+  await Post.update({ today_comment_count: 999, stats_date: new Date('2020-01-01T00:00:00.000Z') }, { where: { id: stalePost.post_id } });
+  await Post.update({ today_comment_count: 1, stats_date: new Date() }, { where: { id: freshPost.post_id } });
+
+  const response = await request(app)
+    .get('/me/posts?sort_by=today_comment_count&sort_order=desc')
+    .set('Authorization', `Bearer ${token}`)
+    .expect(200);
+
+  expect(response.body.data.posts.map((post) => post.title)).toEqual(['Cache hôm nay số nhỏ', 'Cache cũ số lớn']);
+  expect(response.body.data.posts.map((post) => post.today_comment_count)).toEqual([1, 0]);
+});
+
 test('GET /me/posts sort theo phone_today', async () => {
   const token = await loginUser();
 

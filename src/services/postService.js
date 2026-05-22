@@ -1,4 +1,4 @@
-const { Op } = require('sequelize');
+const { Op, literal } = require('sequelize');
 const { Comment, Post, UserPost } = require('../models');
 const { getPagination, paginationMeta } = require('../utils/pagination');
 const realtimeService = require('./realtimeService');
@@ -262,9 +262,11 @@ async function listUserPosts(userId, query) {
 
   const total = await UserPost.count({ where: filters.where });
 
-  const order = ['today_comment_count', 'phone_today', 'updated_at'].includes(sort.sortBy)
-    ? [[{ model: Post, as: 'post' }, sort.sortBy, sort.sortOrder.toUpperCase()]]
-    : [[sort.sortBy, sort.sortOrder.toUpperCase()]];
+  const order = ['today_comment_count', 'phone_today'].includes(sort.sortBy)
+    ? [[literal(`CASE WHEN post.stats_date = '${todayDateKey()}' THEN post.${sort.sortBy} ELSE 0 END`), sort.sortOrder.toUpperCase()]]
+    : sort.sortBy === 'updated_at'
+      ? [[{ model: Post, as: 'post' }, sort.sortBy, sort.sortOrder.toUpperCase()]]
+      : [[sort.sortBy, sort.sortOrder.toUpperCase()]];
 
   const userPosts = await UserPost.findAll({
     where: filters.where,
