@@ -96,6 +96,17 @@ const openApiSpec = {
           updated_at: { type: 'string', format: 'date-time' },
         },
       },
+      IngestPost: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer', example: 1 },
+          fb_post_id: { type: 'string', example: '123456789' },
+          last_count: { type: 'integer', example: 120 },
+          is_blocked: { type: 'boolean', example: false },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+        },
+      },
       Comment: {
         type: 'object',
         properties: {
@@ -439,17 +450,63 @@ const openApiSpec = {
         parameters: [
           { name: 'offset', in: 'query', schema: { type: 'integer', minimum: 0, default: 0 } },
           { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, default: 100 } },
+          { name: 'is_blocked', in: 'query', schema: { type: 'boolean' } },
         ],
-        responses: { 200: { description: 'Danh sách post gốc' } },
+        responses: {
+          200: {
+            description: 'Danh sách post gốc',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        posts: { type: 'array', items: { $ref: '#/components/schemas/IngestPost' } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     },
     '/ingest/posts/{fbPostId}': {
       patch: {
         tags: ['Ingest'],
-        summary: 'Crawler cập nhật last_count cho post gốc',
+        summary: 'Crawler cập nhật post gốc',
         parameters: [{ name: 'fbPostId', in: 'path', required: true, schema: { type: 'string' } }],
-        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['last_count'], properties: { last_count: { type: 'integer', example: 120 } } } } } },
-        responses: { 200: { description: 'last_count đã cập nhật' }, 404: { description: 'Post không tồn tại' } },
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  last_count: { type: 'integer', example: 120 },
+                  is_blocked: { type: 'boolean', example: true },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Post gốc đã cập nhật', content: { 'application/json': { schema: { $ref: '#/components/schemas/IngestPost' } } } },
+          404: { description: 'Post không tồn tại' },
+        },
+      },
+      delete: {
+        tags: ['Ingest'],
+        summary: 'Crawler xoá cứng post gốc',
+        parameters: [{ name: 'fbPostId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'Post gốc đã xoá' },
+          404: { description: 'Post không tồn tại' },
+        },
       },
     },
     '/ingest/comments/bulk': {

@@ -40,6 +40,12 @@ test('không cho tạo hai Post cùng fb_post_id', async () => {
   await expect(Post.create({ fb_post_id: 'fb_duplicate' })).rejects.toThrow();
 });
 
+test('Post có is_blocked mặc định false', async () => {
+  const post = await Post.create({ fb_post_id: 'fb_block_default', last_count: 0 });
+
+  expect(post.is_blocked).toBe(false);
+});
+
 test('tạo UserPost nối User và Post', async () => {
   const user = await createUser('user_post_owner');
   const post = await Post.create({ fb_post_id: 'fb_user_post' });

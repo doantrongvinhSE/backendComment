@@ -7,6 +7,7 @@ function presentPost(post) {
     id: post.id,
     fb_post_id: post.fb_post_id,
     last_count: post.last_count,
+    is_blocked: post.is_blocked,
     created_at: post.created_at,
     updated_at: post.updated_at,
   };
@@ -48,9 +49,19 @@ async function incrementTodayStats(post, comment) {
 async function listPostsForIngest(query = {}) {
   const offset = Math.max(parseInt(query.offset || '0', 10), 0);
   const limit = Math.max(parseInt(query.limit || '100', 10), 1);
+  const where = {};
+
+  if (query.is_blocked === 'true') {
+    where.is_blocked = true;
+  }
+
+  if (query.is_blocked === 'false') {
+    where.is_blocked = false;
+  }
+
   const [posts, total] = await Promise.all([
-    Post.findAll({ order: [['created_at', 'DESC']], offset, limit }),
-    Post.count(),
+    Post.findAll({ where, order: [['created_at', 'DESC']], offset, limit }),
+    Post.count({ where }),
   ]);
 
   return {
@@ -59,16 +70,38 @@ async function listPostsForIngest(query = {}) {
   };
 }
 
-async function updatePostLastCount(fbPostId, lastCount) {
+async function updatePostLastCount(fbPostId, body = {}) {
   const post = await Post.findOne({ where: { fb_post_id: fbPostId } });
 
   if (!post) {
     return { status: 404, body: { success: false, message: 'Post không tồn tại' } };
   }
 
-  await post.update({ last_count: lastCount, updated_at: new Date() });
+  const updates = { updated_at: new Date() };
+
+  if (body.last_count !== undefined) {
+    updates.last_count = body.last_count;
+  }
+
+  if (body.is_blocked !== undefined) {
+    updates.is_blocked = body.is_blocked;
+  }
+
+  await post.update(updates);
 
   return { status: 200, body: { success: true, data: presentPost(post) } };
+}
+
+async function deletePostByFbPostId(fbPostId) {
+  const post = await Post.findOne({ where: { fb_post_id: fbPostId } });
+
+  if (!post) {
+    return { status: 404, body: { success: false, message: 'Post không tồn tại' } };
+  }
+
+  await post.destroy();
+
+  return { status: 200, body: { success: true } };
 }
 
 async function ingestCommentsBulk({ fb_post_id: fbPostId, comments = [] }) {
@@ -162,4 +195,5 @@ module.exports = {
   ingestCommentsBulk,
   listPostsForIngest,
   updatePostLastCount,
+  deletePostByFbPostId,
 };

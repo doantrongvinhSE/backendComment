@@ -402,6 +402,7 @@ test('GET /ingest/posts trả danh sách post gốc cho crawler', async () => {
           id: newerPost.id,
           fb_post_id: 'fb_new',
           last_count: 9,
+          is_blocked: false,
           created_at: newerPost.created_at.toISOString(),
           updated_at: newerPost.updated_at.toISOString(),
         },
@@ -409,6 +410,7 @@ test('GET /ingest/posts trả danh sách post gốc cho crawler', async () => {
           id: olderPost.id,
           fb_post_id: 'fb_old',
           last_count: 3,
+          is_blocked: false,
           created_at: olderPost.created_at.toISOString(),
           updated_at: olderPost.updated_at.toISOString(),
         },
@@ -420,6 +422,55 @@ test('GET /ingest/posts trả danh sách post gốc cho crawler', async () => {
       total: 2,
     },
   });
+});
+
+test('GET /ingest/posts trả is_blocked của post gốc', async () => {
+  const post = await Post.create({ fb_post_id: 'fb_blocked_visible', last_count: 3, is_blocked: true });
+
+  const response = await request(app)
+    .get('/ingest/posts')
+    .expect(200);
+
+  expect(response.body.data.posts[0]).toMatchObject({
+    id: post.id,
+    fb_post_id: 'fb_blocked_visible',
+    last_count: 3,
+    is_blocked: true,
+  });
+});
+
+test('GET /ingest/posts lọc theo is_blocked=true', async () => {
+  const blockedPost = await Post.create({ fb_post_id: 'fb_blocked_only', last_count: 1, is_blocked: true });
+  await Post.create({ fb_post_id: 'fb_unblocked_hidden', last_count: 2, is_blocked: false });
+
+  const response = await request(app)
+    .get('/ingest/posts?is_blocked=true')
+    .expect(200);
+
+  expect(response.body.data.posts).toHaveLength(1);
+  expect(response.body.data.posts[0]).toMatchObject({
+    id: blockedPost.id,
+    fb_post_id: 'fb_blocked_only',
+    is_blocked: true,
+  });
+  expect(response.body.pagination.total).toBe(1);
+});
+
+test('GET /ingest/posts lọc theo is_blocked=false', async () => {
+  await Post.create({ fb_post_id: 'fb_blocked_hidden', last_count: 1, is_blocked: true });
+  const unblockedPost = await Post.create({ fb_post_id: 'fb_unblocked_only', last_count: 2, is_blocked: false });
+
+  const response = await request(app)
+    .get('/ingest/posts?is_blocked=false')
+    .expect(200);
+
+  expect(response.body.data.posts).toHaveLength(1);
+  expect(response.body.data.posts[0]).toMatchObject({
+    id: unblockedPost.id,
+    fb_post_id: 'fb_unblocked_only',
+    is_blocked: false,
+  });
+  expect(response.body.pagination.total).toBe(1);
 });
 
 test('GET /ingest/posts hỗ trợ offset và limit cho crawler', async () => {
@@ -439,6 +490,7 @@ test('GET /ingest/posts hỗ trợ offset và limit cho crawler', async () => {
           id: newestPost.id,
           fb_post_id: 'fb_page_newest',
           last_count: 9,
+          is_blocked: false,
           created_at: newestPost.created_at.toISOString(),
           updated_at: newestPost.updated_at.toISOString(),
         },
@@ -446,6 +498,7 @@ test('GET /ingest/posts hỗ trợ offset và limit cho crawler', async () => {
           id: middlePost.id,
           fb_post_id: 'fb_page_middle',
           last_count: 6,
+          is_blocked: false,
           created_at: middlePost.created_at.toISOString(),
           updated_at: middlePost.updated_at.toISOString(),
         },
@@ -480,10 +533,98 @@ test('PATCH /ingest/posts/:fbPostId cập nhật last_count riêng cho post gố
   expect(post.last_count).toBe(12);
 });
 
+test('PATCH /ingest/posts/:fbPostId cập nhật is_blocked cho post gốc', async () => {
+  const post = await Post.create({ fb_post_id: 'fb_update_blocked', last_count: 5, is_blocked: false });
+
+  const response = await request(app)
+    .patch('/ingest/posts/fb_update_blocked')
+    .send({ is_blocked: true })
+    .expect(200);
+
+  expect(response.body).toMatchObject({
+    success: true,
+    data: {
+      id: post.id,
+      fb_post_id: 'fb_update_blocked',
+      last_count: 5,
+      is_blocked: true,
+    },
+  });
+
+  await post.reload();
+  expect(post.is_blocked).toBe(true);
+  expect(post.last_count).toBe(5);
+});
+
+test('PATCH /ingest/posts/:fbPostId cập nhật last_count và is_blocked cùng lúc', async () => {
+  const post = await Post.create({ fb_post_id: 'fb_update_count_and_blocked', last_count: 5, is_blocked: true });
+
+  const response = await request(app)
+    .patch('/ingest/posts/fb_update_count_and_blocked')
+    .send({ last_count: 12, is_blocked: false })
+    .expect(200);
+
+  expect(response.body).toMatchObject({
+    success: true,
+    data: {
+      id: post.id,
+      fb_post_id: 'fb_update_count_and_blocked',
+      last_count: 12,
+      is_blocked: false,
+    },
+  });
+
+  await post.reload();
+  expect(post.last_count).toBe(12);
+  expect(post.is_blocked).toBe(false);
+});
+
 test('PATCH /ingest/posts/:fbPostId trả 404 khi post gốc không tồn tại', async () => {
   const response = await request(app)
     .patch('/ingest/posts/missing_post')
     .send({ last_count: 12 })
+    .expect(404);
+
+  expect(response.body).toEqual({
+    success: false,
+    message: 'Post không tồn tại',
+  });
+});
+
+test('DELETE /ingest/posts/:fbPostId xoá cứng post gốc', async () => {
+  await Post.create({ fb_post_id: 'fb_delete_post', last_count: 5 });
+
+  const response = await request(app)
+    .delete('/ingest/posts/fb_delete_post')
+    .expect(200);
+
+  expect(response.body).toEqual({ success: true });
+  expect(await Post.findOne({ where: { fb_post_id: 'fb_delete_post' } })).toBeNull();
+});
+
+test('DELETE /ingest/posts/:fbPostId xoá cascade user_posts và comments liên quan', async () => {
+  const post = await Post.create({ fb_post_id: 'fb_delete_cascade', last_count: 5 });
+  const user = await User.create({ username: 'delete_cascade_user', password_hash: 'hash', name: 'Delete Cascade User', role: 'USER' });
+  await UserPost.create({ user_id: user.id, post_id: post.id, title: 'Bài xoá cascade' });
+  await Comment.create({
+    id: 'delete_cascade_comment',
+    uid: 'uid_delete_cascade',
+    timestamp: new Date('2026-05-14T10:00:00.000Z'),
+    post_id: post.id,
+  });
+
+  await request(app)
+    .delete('/ingest/posts/fb_delete_cascade')
+    .expect(200);
+
+  expect(await Post.findByPk(post.id)).toBeNull();
+  expect(await UserPost.count({ where: { post_id: post.id } })).toBe(0);
+  expect(await Comment.count({ where: { post_id: post.id } })).toBe(0);
+});
+
+test('DELETE /ingest/posts/:fbPostId trả 404 khi post gốc không tồn tại', async () => {
+  const response = await request(app)
+    .delete('/ingest/posts/missing_delete_post')
     .expect(404);
 
   expect(response.body).toEqual({

@@ -29,6 +29,11 @@ const Post = sequelize.define('Post', {
     allowNull: false,
     defaultValue: 0,
   },
+  is_blocked: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  },
   stats_date: {
     type: DataTypes.DATEONLY,
     allowNull: true,

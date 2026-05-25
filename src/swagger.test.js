@@ -32,7 +32,11 @@ test('GET /api-docs.json trả OpenAPI spec cho frontend', async () => {
   expect(response.body.paths['/ingest/posts'].get.parameters).toEqual(expect.arrayContaining([
     expect.objectContaining({ name: 'offset', in: 'query' }),
     expect.objectContaining({ name: 'limit', in: 'query' }),
+    expect.objectContaining({ name: 'is_blocked', in: 'query' }),
   ]));
+  expect(response.body.components.schemas.IngestPost.properties.is_blocked).toEqual(expect.objectContaining({ type: 'boolean' }));
+  expect(response.body.paths['/ingest/posts/{fbPostId}'].patch.requestBody.content['application/json'].schema.properties.is_blocked).toEqual(expect.objectContaining({ type: 'boolean' }));
+  expect(response.body.paths['/ingest/posts/{fbPostId}'].delete.responses).toHaveProperty('200');
   expect(response.body.paths['/me/comments'].get.parameters).toEqual(expect.arrayContaining([
     expect.objectContaining({
       name: 'search',
