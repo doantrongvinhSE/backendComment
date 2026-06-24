@@ -96,6 +96,14 @@ const openApiSpec = {
           updated_at: { type: 'string', format: 'date-time' },
         },
       },
+      PublicPostSummary: {
+        type: 'object',
+        properties: {
+          today_comment_count: { type: 'integer', example: 8 },
+          title: { type: 'string', example: 'Bài livestream áo thun' },
+          original_link: { type: 'string', example: 'https://www.facebook.com/reel/123456789' },
+        },
+      },
       IngestPost: {
         type: 'object',
         properties: {
@@ -442,6 +450,37 @@ const openApiSpec = {
         parameters: [{ name: 'orderId', in: 'path', required: true, schema: { type: 'integer' } }],
         responses: { 200: { description: 'Order đã xóa' }, 404: { description: 'Order không tồn tại' } },
       }),
+    },
+    '/public/posts': {
+      get: {
+        tags: ['Posts'],
+        summary: 'Lấy danh sách post public theo số comment hôm nay',
+        parameters: [
+          { name: 'today_comment_count_gt', in: 'query', schema: { type: 'integer', default: 3 }, description: 'Chỉ lấy post có today_comment_count lớn hơn ngưỡng này' },
+        ],
+        responses: {
+          200: {
+            description: 'Danh sách post public',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        posts: { type: 'array', items: { $ref: '#/components/schemas/PublicPostSummary' } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          400: { description: 'Tham số lọc không hợp lệ' },
+        },
+      },
     },
     '/ingest/posts': {
       get: {

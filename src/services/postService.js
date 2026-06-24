@@ -1,5 +1,5 @@
-const { Op, literal } = require('sequelize');
-const { Comment, Post, UserPost } = require('../models');
+const { Op, literal, QueryTypes } = require('sequelize');
+const { sequelize, Comment, Post, UserPost } = require('../models');
 const { getPagination, paginationMeta } = require('../utils/pagination');
 const realtimeService = require('./realtimeService');
 const { vietnamDateKey, vietnamTodayRange } = require('../utils/vietnamTime');
@@ -199,6 +199,51 @@ function presentUserPosts(userPosts) {
   return userPosts.map(presentUserPost);
 }
 
+function parseTodayCommentCountGt(query = {}) {
+  if (query.today_comment_count_gt === undefined) {
+    return 3;
+  }
+
+  const value = Number(query.today_comment_count_gt);
+  if (!Number.isInteger(value)) {
+    return null;
+  }
+
+  return value;
+}
+
+async function listPublicPosts(query = {}) {
+  const todayCommentCountGt = parseTodayCommentCountGt(query);
+
+  if (todayCommentCountGt === null) {
+    return invalidFilterResponse();
+  }
+
+  const posts = await sequelize.query(`
+    SELECT
+      p.today_comment_count AS today_comment_count,
+      MIN(up.title) AS title,
+      MIN(up.original_link) AS original_link
+    FROM posts p
+    INNER JOIN user_posts up
+      ON up.post_id = p.id
+    WHERE p.today_comment_count > :todayCommentCountGt
+    GROUP BY p.id, p.fb_post_id, p.today_comment_count
+    ORDER BY p.today_comment_count DESC
+  `, {
+    replacements: { todayCommentCountGt },
+    type: QueryTypes.SELECT,
+  });
+
+  return {
+    status: 200,
+    body: {
+      success: true,
+      data: { posts },
+    },
+  };
+}
+
 async function createUserPost(userId, { title, originalLink }) {
   const normalizedTitle = typeof title === 'string' ? title.trim() : '';
   const normalizedOriginalLink = typeof originalLink === 'string' ? originalLink.trim() : '';
@@ -380,6 +425,7 @@ module.exports = {
   extractPostId,
   createUserPost,
   listUserPosts,
+  listPublicPosts,
   getUserPost,
   updateUserPost,
   deleteUserPost,

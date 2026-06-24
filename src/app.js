@@ -4,6 +4,7 @@ const swaggerUi = require('swagger-ui-express');
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const postRoutes = require('./routes/postRoutes');
+const publicPostRoutes = require('./routes/publicPostRoutes');
 const commentRoutes = require('./routes/commentRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const salerRoutes = require('./routes/salerRoutes');
@@ -36,6 +37,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
 app.use('/auth', authRoutes);
 app.use('/ingest', ingestRoutes);
+app.use('/public/posts', publicPostRoutes);
 app.get('/me', authMiddleware, authController.me);
 app.use('/me/comments', commentRoutes);
 app.use('/me/orders', orderRoutes);

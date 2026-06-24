@@ -27,6 +27,15 @@ async function countTodayCommentedPosts(req, res, next) {
   }
 }
 
+async function listPublicPosts(req, res, next) {
+  try {
+    const result = await postService.listPublicPosts(req.query);
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function getUserPost(req, res, next) {
   try {
     const result = await postService.getUserPost(req.user.id, req.params.userPostId);
@@ -58,6 +67,7 @@ module.exports = {
   createUserPost,
   listUserPosts,
   countTodayCommentedPosts,
+  listPublicPosts,
   getUserPost,
   updateUserPost,
   deleteUserPost,

@@ -29,6 +29,19 @@ test('GET /api-docs.json trả OpenAPI spec cho frontend', async () => {
     }),
   ]));
   expect(response.body.paths).toHaveProperty('/me/comments/count-today');
+  expect(response.body.paths).toHaveProperty('/public/posts');
+  expect(response.body.paths['/public/posts'].get.security).toBeUndefined();
+  expect(response.body.paths['/public/posts'].get.parameters).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      name: 'today_comment_count_gt',
+      in: 'query',
+    }),
+  ]));
+  expect(response.body.components.schemas.PublicPostSummary.properties).toEqual(expect.objectContaining({
+    today_comment_count: expect.objectContaining({ type: 'integer' }),
+    title: expect.objectContaining({ type: 'string' }),
+    original_link: expect.objectContaining({ type: 'string' }),
+  }));
   expect(response.body.paths['/ingest/posts'].get.parameters).toEqual(expect.arrayContaining([
     expect.objectContaining({ name: 'offset', in: 'query' }),
     expect.objectContaining({ name: 'limit', in: 'query' }),

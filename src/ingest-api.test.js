@@ -5,6 +5,7 @@ process.env.NODE_ENV = 'test';
 const app = require('./app');
 const ingestService = require('./services/ingestService');
 const realtimeService = require('./services/realtimeService');
+const { vietnamDateKey } = require('./utils/vietnamTime');
 const { sequelize, Post, Comment, User, UserPost } = require('./models');
 
 function ingestPayload(overrides = {}) {
@@ -262,7 +263,7 @@ test('POST /ingest/comments/bulk tăng cache stats cho comment hôm nay và bỏ
   await post.reload();
   expect(post.today_comment_count).toBe(2);
   expect(post.phone_today).toBe(1);
-  expect(post.stats_date).toBe(now.toISOString().slice(0, 10));
+  expect(post.stats_date).toBe(vietnamDateKey(now));
 });
 
 test('POST /ingest/comments/bulk reset cache cũ trước khi tăng comment hôm nay', async () => {
@@ -288,7 +289,7 @@ test('POST /ingest/comments/bulk reset cache cũ trước khi tăng comment hôm
   await post.reload();
   expect(post.today_comment_count).toBe(1);
   expect(post.phone_today).toBe(1);
-  expect(post.stats_date).toBe(now.toISOString().slice(0, 10));
+  expect(post.stats_date).toBe(vietnamDateKey(now));
 });
 
 test('POST /ingest/comments/bulk trả 409 khi comment id đã tồn tại và không update fields cũ', async () => {
