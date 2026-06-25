@@ -227,11 +227,12 @@ async function listPublicPosts(query = {}) {
     FROM posts p
     INNER JOIN user_posts up
       ON up.post_id = p.id
-    WHERE p.today_comment_count > :todayCommentCountGt
+    WHERE p.stats_date = :todayDate
+      AND p.today_comment_count > :todayCommentCountGt
     GROUP BY p.id, p.fb_post_id, p.today_comment_count
     ORDER BY p.today_comment_count DESC
   `, {
-    replacements: { todayCommentCountGt },
+    replacements: { todayCommentCountGt, todayDate: todayDateKey() },
     type: QueryTypes.SELECT,
   });
 

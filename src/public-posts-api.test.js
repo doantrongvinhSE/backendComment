@@ -30,11 +30,15 @@ afterAll(async () => {
   await sequelize.close();
 });
 
-test('GET /public/posts không cần auth và trả danh sách theo ngưỡng mặc định', async () => {
+test('GET /public/posts không cần auth và chỉ trả stats ngày hôm nay theo múi giờ Việt Nam', async () => {
   const [user1, user2, user3, user4] = await createPublicUsers();
-  const lowPost = await Post.create({ fb_post_id: 'public_low', last_count: 0, today_comment_count: 3 });
-  const highPost = await Post.create({ fb_post_id: 'public_high', last_count: 0, today_comment_count: 8 });
-  const mediumPost = await Post.create({ fb_post_id: 'public_medium', last_count: 0, today_comment_count: 5 });
+  const today = new Date();
+  const staleDate = new Date(today);
+  staleDate.setDate(staleDate.getDate() - 1);
+  const lowPost = await Post.create({ fb_post_id: 'public_low', last_count: 0, today_comment_count: 3, stats_date: today });
+  const highPost = await Post.create({ fb_post_id: 'public_high', last_count: 0, today_comment_count: 8, stats_date: today });
+  const mediumPost = await Post.create({ fb_post_id: 'public_medium', last_count: 0, today_comment_count: 5, stats_date: today });
+  const stalePost = await Post.create({ fb_post_id: 'public_stale', last_count: 0, today_comment_count: 99, stats_date: staleDate });
 
   await UserPost.bulkCreate([
     {
@@ -60,6 +64,12 @@ test('GET /public/posts không cần auth và trả danh sách theo ngưỡng m�
       post_id: lowPost.id,
       title: 'Low title',
       original_link: 'https://example.com/low',
+    },
+    {
+      user_id: user4.id,
+      post_id: stalePost.id,
+      title: 'Stale title',
+      original_link: 'https://example.com/stale',
     },
   ]);
 
@@ -88,8 +98,9 @@ test('GET /public/posts không cần auth và trả danh sách theo ngưỡng m�
 
 test('GET /public/posts cho phép đổi ngưỡng today_comment_count_gt', async () => {
   const [user1, user2] = await createPublicUsers();
-  const fivePost = await Post.create({ fb_post_id: 'public_five', last_count: 0, today_comment_count: 5 });
-  const sixPost = await Post.create({ fb_post_id: 'public_six', last_count: 0, today_comment_count: 6 });
+  const today = new Date();
+  const fivePost = await Post.create({ fb_post_id: 'public_five', last_count: 0, today_comment_count: 5, stats_date: today });
+  const sixPost = await Post.create({ fb_post_id: 'public_six', last_count: 0, today_comment_count: 6, stats_date: today });
 
   await UserPost.bulkCreate([
     {

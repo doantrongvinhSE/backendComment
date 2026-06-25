@@ -4,7 +4,7 @@ const path = require('path');
 const TEMPLATE_PATH = path.join(__dirname, 'file/lendon.upos.xlsx');
 const ORDER_SHEET_NAME = 'Đơn hàng';
 const ORDER_DATA_START_ROW = 6;
-const DELIVERY_NOTE = 'CHO KIỂM TRA HÀNG K NHẬN THU 30K SHIP';
+const DELIVERY_NOTE = 'CHO KIỂM TRA HÀNG K NHẬN THU 30K SHIP, HẠ COD THÌ NHẮN TIN MVĐ QUA SĐT';
 
 function fillOrderRow(worksheet, rowNumber, order) {
   worksheet.getCell(`A${rowNumber}`).value = '';
