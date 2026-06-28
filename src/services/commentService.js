@@ -99,11 +99,11 @@ async function listAllUserComments(userId, query) {
   }
 
   const filterSql = filters.length > 0 ? ` AND ${filters.join(' AND ')}` : '';
-  const defaultCommentsTable = sequelize.getDialect() === 'mysql'
+  const commentsTable = sequelize.getDialect() === 'mysql'
     ? 'comments c FORCE INDEX (idx_comments_timestamp_post)'
     : 'comments c';
   const fromSql = `
-    FROM comments c
+    FROM ${commentsTable}
     INNER JOIN user_posts up
       ON up.post_id = c.post_id
       AND up.user_id = :userId
@@ -148,7 +148,7 @@ async function listAllUserComments(userId, query) {
         c.content,
         c.phone,
         c.timestamp
-      FROM ${defaultCommentsTable}
+      FROM ${commentsTable}
       INNER JOIN user_posts up
         ON up.post_id = c.post_id
         AND up.user_id = :userId
