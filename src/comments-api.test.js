@@ -224,8 +224,11 @@ test('GET /me/comments phân trang tất cả comments của user mà không n�
   findAllSpy.mockRestore();
 
   expect(defaultPageQueries).toHaveLength(1);
-  expect(defaultPageQueries[0]).not.toContain('phone');
+  expect(defaultPageQueries[0]).not.toContain('c.phone > :emptyPhone');
+  expect(defaultPageQueries[0]).not.toContain("c.phone != ''");
+  expect(defaultPageQueries[0]).not.toContain('c.phone LIKE :search');
   expect(response.body.data.comments.map((comment) => comment.id)).toEqual(['paged_3', 'paged_2']);
+  expect(response.body.data.comments.map((comment) => comment.phone)).toEqual(['09000000_3', '09000000_2']);
   expect(response.body.pagination).toEqual({
     page: 1,
     limit: 2,

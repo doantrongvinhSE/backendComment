@@ -138,6 +138,7 @@ async function listAllUserComments(userId, query) {
         c.fb_name,
         c.avatar_user,
         c.content,
+        c.phone,
         c.timestamp
       FROM comments c
       INNER JOIN user_posts up
