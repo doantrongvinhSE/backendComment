@@ -238,6 +238,49 @@ test('GET /me/comments phân trang tất cả comments của user mà không n�
   expect(unboundedUserPostLoads).toHaveLength(0);
 });
 
+test('GET /me/comments chạy count và lấy trang song song khi không filter', async () => {
+  const { user } = await loginUser('all_comments_parallel_owner');
+  const { post } = await createTrackedPost(user, 'fb_parallel_page', 'Bài song song');
+  await createComment(post, 'parallel_comment', '2026-05-14T10:00:00.000Z');
+
+  const originalQuery = sequelize.query.bind(sequelize);
+  let countResolve;
+  let countResolved = false;
+  let pageStartedBeforeCountResolved = false;
+  const querySpy = jest.spyOn(sequelize, 'query').mockImplementation((sql, options) => {
+    if (typeof sql === 'string' && sql.includes('SELECT COUNT(*) AS total')) {
+      return new Promise((resolve, reject) => {
+        countResolve = () => {
+          countResolved = true;
+          originalQuery(sql, options).then(resolve).catch(reject);
+        };
+      });
+    }
+
+    if (typeof sql === 'string' && sql.includes('comments_default_page')) {
+      pageStartedBeforeCountResolved = !countResolved;
+    }
+
+    return originalQuery(sql, options);
+  });
+
+  let result;
+
+  try {
+    const resultPromise = commentService.listAllUserComments(user.id, { page: '1', limit: '1' });
+
+    expect(countResolve).toBeDefined();
+    countResolve();
+    result = await resultPromise;
+  } finally {
+    querySpy.mockRestore();
+  }
+
+  expect(pageStartedBeforeCountResolved).toBe(true);
+  expect(result.body.data.comments[0].id).toBe('parallel_comment');
+  expect(result.body.pagination.total).toBe(1);
+});
+
 test('GET /me/comments từ chối page hoặc limit không hợp lệ', async () => {
   const { token } = await loginUser('all_comments_invalid_page');
 

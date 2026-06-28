@@ -106,13 +106,10 @@ async function listAllUserComments(userId, query) {
       AND up.user_id = :userId
     WHERE 1 = 1${filterSql}
   `;
-  const [{ total }] = await sequelize.query(`
+  const countSql = `
     SELECT COUNT(*) AS total
     ${fromSql}
-  `, {
-    replacements,
-    type: QueryTypes.SELECT,
-  });
+  `;
   const commentsSql = query.phone === 'true' || query.search
     ? `
       SELECT
@@ -147,10 +144,16 @@ async function listAllUserComments(userId, query) {
       ORDER BY c.timestamp DESC
       LIMIT :limit OFFSET :offset
     `;
-  const comments = await sequelize.query(commentsSql, {
-    replacements,
-    type: QueryTypes.SELECT,
-  });
+  const [[{ total }], comments] = await Promise.all([
+    sequelize.query(countSql, {
+      replacements,
+      type: QueryTypes.SELECT,
+    }),
+    sequelize.query(commentsSql, {
+      replacements,
+      type: QueryTypes.SELECT,
+    }),
+  ]);
   const statusByCommentId = await buildStatusMap(userId, comments.map((comment) => comment.id));
 
   return {
