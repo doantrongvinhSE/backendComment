@@ -290,20 +290,23 @@ test('GET /me/comments?phone=true dùng FORCE INDEX trên MySQL', async () => {
   });
   jest.spyOn(sequelize, 'getDialect').mockReturnValue('mysql');
 
-  let phoneQueries;
+  let phoneCountQuery;
+  let phonePageQuery;
 
   try {
     await commentService.listAllUserComments(user.id, { page: '1', limit: '1', phone: 'true' });
-    phoneQueries = querySpy.mock.calls
+    const phoneQueries = querySpy.mock.calls
       .map(([sql]) => sql)
       .filter((sql) => typeof sql === 'string' && sql.includes('c.phone > :emptyPhone'));
+    phoneCountQuery = phoneQueries.find((sql) => sql.includes('SELECT COUNT(*) AS total'));
+    phonePageQuery = phoneQueries.find((sql) => sql.includes('ORDER BY c.timestamp DESC'));
   } finally {
     sequelize.getDialect.mockRestore();
     querySpy.mockRestore();
   }
 
-  expect(phoneQueries).toHaveLength(2);
-  expect(phoneQueries.every((sql) => sql.includes('FROM comments c FORCE INDEX (idx_comments_timestamp_post)'))).toBe(true);
+  expect(phoneCountQuery).toContain('FROM comments c FORCE INDEX (idx_comments_post_phone_timestamp)');
+  expect(phonePageQuery).toContain('FROM comments c FORCE INDEX (idx_comments_timestamp_post)');
 });
 
 test('GET /me/comments chạy count và lấy trang song song khi không filter', async () => {

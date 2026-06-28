@@ -99,11 +99,15 @@ async function listAllUserComments(userId, query) {
   }
 
   const filterSql = filters.length > 0 ? ` AND ${filters.join(' AND ')}` : '';
-  const commentsTable = sequelize.getDialect() === 'mysql'
+  const isMysql = sequelize.getDialect() === 'mysql';
+  const countCommentsTable = isMysql && query.phone === 'true'
+    ? 'comments c FORCE INDEX (idx_comments_post_phone_timestamp)'
+    : 'comments c';
+  const pageCommentsTable = isMysql
     ? 'comments c FORCE INDEX (idx_comments_timestamp_post)'
     : 'comments c';
-  const fromSql = `
-    FROM ${commentsTable}
+  const countFromSql = `
+    FROM ${countCommentsTable}
     INNER JOIN user_posts up
       ON up.post_id = c.post_id
       AND up.user_id = :userId
@@ -112,7 +116,7 @@ async function listAllUserComments(userId, query) {
   const countSql = query.phone === 'true' || query.search
     ? `
       SELECT COUNT(*) AS total
-      ${fromSql}
+      ${countFromSql}
     `
     : `
       SELECT /* comments_default_count */ COUNT(*) AS total
@@ -133,7 +137,11 @@ async function listAllUserComments(userId, query) {
         c.content,
         c.phone,
         c.timestamp
-      ${fromSql}
+      FROM ${pageCommentsTable}
+      INNER JOIN user_posts up
+        ON up.post_id = c.post_id
+        AND up.user_id = :userId
+      WHERE 1 = 1${filterSql}
       ORDER BY c.timestamp DESC
       LIMIT :limit OFFSET :offset
     `
@@ -148,7 +156,7 @@ async function listAllUserComments(userId, query) {
         c.content,
         c.phone,
         c.timestamp
-      FROM ${commentsTable}
+      FROM ${pageCommentsTable}
       INNER JOIN user_posts up
         ON up.post_id = c.post_id
         AND up.user_id = :userId
