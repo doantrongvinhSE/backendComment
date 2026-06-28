@@ -212,9 +212,9 @@ test('GET /me/comments phân trang tất cả comments của user mà không n�
     .set('Authorization', `Bearer ${token}`)
     .expect(200);
 
-  const defaultPageQueries = querySpy.mock.calls
-    .map(([sql]) => sql)
-    .filter((sql) => typeof sql === 'string' && sql.includes('comments_default_page'));
+  const querySql = querySpy.mock.calls.map(([sql]) => sql).filter((sql) => typeof sql === 'string');
+  const defaultCountQueries = querySql.filter((sql) => sql.includes('comments_default_count'));
+  const defaultPageQueries = querySql.filter((sql) => sql.includes('comments_default_page'));
   const unboundedUserPostLoads = findAllSpy.mock.calls.filter(([options]) => {
     const where = options?.where || {};
     return where.user_id === user.id && where.post_id === undefined && where.id === undefined && options?.limit === undefined;
@@ -223,6 +223,9 @@ test('GET /me/comments phân trang tất cả comments của user mà không n�
   querySpy.mockRestore();
   findAllSpy.mockRestore();
 
+  expect(defaultCountQueries).toHaveLength(1);
+  expect(defaultCountQueries[0]).toContain('FROM user_posts up');
+  expect(defaultCountQueries[0]).toContain('INNER JOIN comments c');
   expect(defaultPageQueries).toHaveLength(1);
   expect(defaultPageQueries[0]).not.toContain('c.phone > :emptyPhone');
   expect(defaultPageQueries[0]).not.toContain("c.phone != ''");
@@ -248,7 +251,7 @@ test('GET /me/comments chạy count và lấy trang song song khi không filter'
   let countResolved = false;
   let pageStartedBeforeCountResolved = false;
   const querySpy = jest.spyOn(sequelize, 'query').mockImplementation((sql, options) => {
-    if (typeof sql === 'string' && sql.includes('SELECT COUNT(*) AS total')) {
+    if (typeof sql === 'string' && sql.includes('comments_default_count')) {
       return new Promise((resolve, reject) => {
         countResolve = () => {
           countResolved = true;

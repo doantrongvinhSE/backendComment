@@ -106,10 +106,18 @@ async function listAllUserComments(userId, query) {
       AND up.user_id = :userId
     WHERE 1 = 1${filterSql}
   `;
-  const countSql = `
-    SELECT COUNT(*) AS total
-    ${fromSql}
-  `;
+  const countSql = query.phone === 'true' || query.search
+    ? `
+      SELECT COUNT(*) AS total
+      ${fromSql}
+    `
+    : `
+      SELECT /* comments_default_count */ COUNT(*) AS total
+      FROM user_posts up
+      INNER JOIN comments c
+        ON c.post_id = up.post_id
+      WHERE up.user_id = :userId
+    `;
   const commentsSql = query.phone === 'true' || query.search
     ? `
       SELECT
