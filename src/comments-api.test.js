@@ -187,7 +187,7 @@ test('GET /me/comments trả tất cả comments thuộc các bài user theo dõ
   expect(response.body.data.comments[1].user_post_id).toBeUndefined();
 });
 
-test('GET /me/comments phân trang tất cả comments của user', async () => {
+test('GET /me/comments phân trang tất cả comments của user mà không nạp toàn bộ bài viết', async () => {
   const { user, token } = await loginUser('all_comments_paged_owner');
   const { user: otherUser } = await loginUser('all_comments_paged_other');
 
@@ -195,10 +195,16 @@ test('GET /me/comments phân trang tất cả comments của user', async () => 
   const { post: secondPost } = await createTrackedPost(user, 'fb_paged_2', 'Bài 2');
   const { post: otherPost } = await createTrackedPost(otherUser, 'fb_paged_other', 'Bài khác');
 
+  for (let index = 0; index < 40; index += 1) {
+    await createTrackedPost(user, `fb_unused_${index}`, `Bài không có comment ${index}`);
+  }
+
   await createComment(firstPost, 'paged_1', '2026-05-14T08:00:00.000Z');
   await createComment(secondPost, 'paged_2', '2026-05-14T09:00:00.000Z');
   await createComment(secondPost, 'paged_3', '2026-05-14T10:00:00.000Z');
   await createComment(otherPost, 'hidden_paged', '2026-05-14T11:00:00.000Z');
+
+  const findAllSpy = jest.spyOn(UserPost, 'findAll');
 
   const response = await request(app)
     .get('/me/comments?page=1&limit=2')
@@ -212,6 +218,13 @@ test('GET /me/comments phân trang tất cả comments của user', async () => 
     total: 3,
     total_pages: 2,
   });
+  const unboundedUserPostLoads = findAllSpy.mock.calls.filter(([options]) => {
+    const where = options?.where || {};
+    return where.user_id === user.id && where.post_id === undefined && where.id === undefined && options?.limit === undefined;
+  });
+  expect(unboundedUserPostLoads).toHaveLength(0);
+
+  findAllSpy.mockRestore();
 });
 
 test('GET /me/comments từ chối page hoặc limit không hợp lệ', async () => {

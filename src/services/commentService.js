@@ -1,5 +1,5 @@
-const { Op } = require('sequelize');
-const { Comment, UserComment, UserPost } = require('../models');
+const { Op, QueryTypes } = require('sequelize');
+const { sequelize, Comment, UserComment, UserPost } = require('../models');
 const { getPagination, paginationMeta } = require('../utils/pagination');
 const realtimeService = require('./realtimeService');
 const { vietnamTodayRange } = require('../utils/vietnamTime');
@@ -82,35 +82,53 @@ async function listAllUserComments(userId, query) {
     return pagination.error;
   }
 
-  const userPosts = await UserPost.findAll({ where: { user_id: userId } });
-  const userPostByPostId = new Map(userPosts.map((userPost) => [userPost.post_id, userPost]));
-  const postIds = userPosts.map((userPost) => userPost.post_id);
-
-  if (postIds.length === 0) {
-    return {
-      status: 200,
-      body: {
-        success: true,
-        data: { comments: [] },
-        pagination: paginationMeta(pagination.page, pagination.limit, 0),
-      },
-    };
-  }
-
-  const where = { post_id: postIds };
-  if (query.search) {
-    where.phone = { [Op.like]: `%${query.search}%` };
-  }
-  if (query.phone === 'true') {
-    where.phone = { [Op.ne]: null, [Op.not]: '' };
-  }
-
-  const total = await Comment.count({ where });
-  const comments = await Comment.findAll({
-    where,
-    order: [['timestamp', 'DESC']],
+  const replacements = {
+    userId,
     limit: pagination.limit,
     offset: pagination.offset,
+  };
+  const filters = [];
+
+  if (query.search) {
+    filters.push('c.phone LIKE :search');
+    replacements.search = `%${query.search}%`;
+  }
+  if (query.phone === 'true') {
+    filters.push("c.phone IS NOT NULL AND c.phone != ''");
+  }
+
+  const filterSql = filters.length > 0 ? ` AND ${filters.join(' AND ')}` : '';
+  const fromSql = `
+    FROM comments c
+    INNER JOIN user_posts up
+      ON up.post_id = c.post_id
+      AND up.user_id = :userId
+    WHERE 1 = 1${filterSql}
+  `;
+  const [{ total }] = await sequelize.query(`
+    SELECT COUNT(*) AS total
+    ${fromSql}
+  `, {
+    replacements,
+    type: QueryTypes.SELECT,
+  });
+  const comments = await sequelize.query(`
+    SELECT
+      c.id,
+      up.title AS post_title,
+      up.original_link AS post_original_link,
+      c.uid,
+      c.fb_name,
+      c.avatar_user,
+      c.content,
+      c.phone,
+      c.timestamp
+    ${fromSql}
+    ORDER BY c.timestamp DESC
+    LIMIT :limit OFFSET :offset
+  `, {
+    replacements,
+    type: QueryTypes.SELECT,
   });
   const statusByCommentId = await buildStatusMap(userId, comments.map((comment) => comment.id));
 
@@ -119,13 +137,20 @@ async function listAllUserComments(userId, query) {
     body: {
       success: true,
       data: {
-        comments: comments.map((comment) => presentComment(
-          comment,
-          userPostByPostId.get(comment.post_id),
-          statusByCommentId,
-        )),
+        comments: comments.map((comment) => ({
+          id: comment.id,
+          post_title: comment.post_title,
+          post_original_link: comment.post_original_link,
+          uid: comment.uid,
+          fb_name: comment.fb_name,
+          avatar_user: comment.avatar_user,
+          content: comment.content,
+          phone: comment.phone,
+          timestamp: comment.timestamp,
+          status: statusByCommentId.get(comment.id) || 'normal',
+        })),
       },
-      pagination: paginationMeta(pagination.page, pagination.limit, total),
+      pagination: paginationMeta(pagination.page, pagination.limit, Number(total)),
     },
   };
 }
