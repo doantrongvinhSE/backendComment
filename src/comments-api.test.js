@@ -205,12 +205,26 @@ test('GET /me/comments phân trang tất cả comments của user mà không n�
   await createComment(otherPost, 'hidden_paged', '2026-05-14T11:00:00.000Z');
 
   const findAllSpy = jest.spyOn(UserPost, 'findAll');
+  const querySpy = jest.spyOn(sequelize, 'query');
 
   const response = await request(app)
     .get('/me/comments?page=1&limit=2')
     .set('Authorization', `Bearer ${token}`)
     .expect(200);
 
+  const defaultPageQueries = querySpy.mock.calls
+    .map(([sql]) => sql)
+    .filter((sql) => typeof sql === 'string' && sql.includes('comments_default_page'));
+  const unboundedUserPostLoads = findAllSpy.mock.calls.filter(([options]) => {
+    const where = options?.where || {};
+    return where.user_id === user.id && where.post_id === undefined && where.id === undefined && options?.limit === undefined;
+  });
+
+  querySpy.mockRestore();
+  findAllSpy.mockRestore();
+
+  expect(defaultPageQueries).toHaveLength(1);
+  expect(defaultPageQueries[0]).not.toContain('phone');
   expect(response.body.data.comments.map((comment) => comment.id)).toEqual(['paged_3', 'paged_2']);
   expect(response.body.pagination).toEqual({
     page: 1,
@@ -218,13 +232,7 @@ test('GET /me/comments phân trang tất cả comments của user mà không n�
     total: 3,
     total_pages: 2,
   });
-  const unboundedUserPostLoads = findAllSpy.mock.calls.filter(([options]) => {
-    const where = options?.where || {};
-    return where.user_id === user.id && where.post_id === undefined && where.id === undefined && options?.limit === undefined;
-  });
   expect(unboundedUserPostLoads).toHaveLength(0);
-
-  findAllSpy.mockRestore();
 });
 
 test('GET /me/comments từ chối page hoặc limit không hợp lệ', async () => {
@@ -342,10 +350,20 @@ test('GET /me/comments?phone=true chỉ trả comments có số điện thoại'
   await createComment(otherPost, 'phone_hidden', '2026-05-14T12:00:00.000Z');
   await Comment.update({ phone: '0933333333' }, { where: { id: 'phone_hidden' } });
 
+  const querySpy = jest.spyOn(sequelize, 'query');
+
   const response = await request(app)
     .get('/me/comments?sort=timestamp&page=1&limit=20&phone=true')
     .set('Authorization', `Bearer ${token}`)
     .expect(200);
+
+  const phoneQueries = querySpy.mock.calls
+    .map(([sql]) => sql)
+    .filter((sql) => typeof sql === 'string' && sql.includes('FROM comments c'));
+  expect(phoneQueries.every((sql) => sql.includes('c.phone > :emptyPhone'))).toBe(true);
+  expect(phoneQueries.every((sql) => !sql.includes("c.phone != ''"))).toBe(true);
+
+  querySpy.mockRestore();
 
   expect(response.body.data.comments.map((comment) => comment.id)).toEqual(['phone_new', 'phone_old']);
   expect(response.body.data.comments.map((comment) => comment.phone)).toEqual(['0922222222', '0911111111']);

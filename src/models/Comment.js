@@ -46,6 +46,8 @@ const Comment = sequelize.define('Comment', {
       fields: ['post_id', 'id'],
     },
     { fields: ['post_id', 'timestamp'] },
+    { fields: ['timestamp', 'post_id'] },
+    { fields: ['post_id', 'phone', 'timestamp'] },
     { fields: ['phone'] },
   ],
 });

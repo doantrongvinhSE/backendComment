@@ -116,3 +116,15 @@ test('hai user có status riêng trên cùng comment', async () => {
   expect(userAComment.status).toBe('success');
   expect(userBComment.status).toBe('fail');
 });
+
+test('Comment có index phục vụ lọc phone theo post và sort timestamp', () => {
+  const indexes = Comment.options.indexes.map((index) => index.fields);
+
+  expect(indexes).toContainEqual(['post_id', 'phone', 'timestamp']);
+});
+
+test('Comment có index phục vụ lấy trang mới nhất khi không lọc phone', () => {
+  const indexes = Comment.options.indexes.map((index) => index.fields);
+
+  expect(indexes).toContainEqual(['timestamp', 'post_id']);
+});

@@ -94,7 +94,8 @@ async function listAllUserComments(userId, query) {
     replacements.search = `%${query.search}%`;
   }
   if (query.phone === 'true') {
-    filters.push("c.phone IS NOT NULL AND c.phone != ''");
+    filters.push('c.phone > :emptyPhone');
+    replacements.emptyPhone = '';
   }
 
   const filterSql = filters.length > 0 ? ` AND ${filters.join(' AND ')}` : '';
@@ -112,21 +113,40 @@ async function listAllUserComments(userId, query) {
     replacements,
     type: QueryTypes.SELECT,
   });
-  const comments = await sequelize.query(`
-    SELECT
-      c.id,
-      up.title AS post_title,
-      up.original_link AS post_original_link,
-      c.uid,
-      c.fb_name,
-      c.avatar_user,
-      c.content,
-      c.phone,
-      c.timestamp
-    ${fromSql}
-    ORDER BY c.timestamp DESC
-    LIMIT :limit OFFSET :offset
-  `, {
+  const commentsSql = query.phone === 'true' || query.search
+    ? `
+      SELECT
+        c.id,
+        up.title AS post_title,
+        up.original_link AS post_original_link,
+        c.uid,
+        c.fb_name,
+        c.avatar_user,
+        c.content,
+        c.phone,
+        c.timestamp
+      ${fromSql}
+      ORDER BY c.timestamp DESC
+      LIMIT :limit OFFSET :offset
+    `
+    : `
+      SELECT /* comments_default_page */
+        c.id,
+        up.title AS post_title,
+        up.original_link AS post_original_link,
+        c.uid,
+        c.fb_name,
+        c.avatar_user,
+        c.content,
+        c.timestamp
+      FROM comments c
+      INNER JOIN user_posts up
+        ON up.post_id = c.post_id
+        AND up.user_id = :userId
+      ORDER BY c.timestamp DESC
+      LIMIT :limit OFFSET :offset
+    `;
+  const comments = await sequelize.query(commentsSql, {
     replacements,
     type: QueryTypes.SELECT,
   });
