@@ -7,8 +7,15 @@ const realtimeService = require('./services/realtimeService');
 const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 
-realtimeService.attach(server);
+async function start() {
+  await realtimeService.attach(server);
 
-server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  server.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
+}
+
+start().catch((error) => {
+  console.error(error);
+  process.exit(1);
 });

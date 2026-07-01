@@ -83,7 +83,9 @@ test('GET /realtime/docs trả docs realtime events', async () => {
     .get('/realtime/docs')
     .expect(200);
 
-  expect(response.body.connect.url).toBe('ws://localhost:3000?token=<session_token>');
+  expect(response.body.connect.url).toBe('http://localhost:3000');
+  expect(response.body.connect.client).toContain("auth: { token: '<session_token>' }");
+  expect(response.body.connect.listen).toContain("socket.on('message'");
   expect(response.body.events['comment.created'].payload.comment.post_title).toBe('Bài livestream áo thun');
   expect(response.body.events['comment.created'].payload.comment.post_original_link).toBe('https://www.facebook.com/reel/123456789');
   expect(response.body.events['post.stats_updated']).toBeDefined();

@@ -1,34 +1,14 @@
+const { Server } = require('socket.io');
+const { createAdapter } = require('@socket.io/redis-adapter');
+const { createClient } = require('redis');
 const { Op } = require('sequelize');
 const { UserSession, User } = require('../models');
 const { hashToken } = require('../utils/token');
 
-let wss = null;
-const rooms = new Map();
+let io = null;
+let pubClient = null;
+let subClient = null;
 const testEvents = [];
-
-function joinRoom(client, room) {
-  if (!rooms.has(room)) {
-    rooms.set(room, new Set());
-  }
-
-  rooms.get(room).add(client);
-  client.rooms = client.rooms || new Set();
-  client.rooms.add(room);
-}
-
-function leaveRooms(client) {
-  if (!client.rooms) return;
-
-  client.rooms.forEach((room) => {
-    const clients = rooms.get(room);
-    if (!clients) return;
-
-    clients.delete(client);
-    if (clients.size === 0) {
-      rooms.delete(room);
-    }
-  });
-}
 
 async function findUserByToken(token) {
   if (!token) return null;
@@ -49,38 +29,70 @@ async function findUserByToken(token) {
   return session.user;
 }
 
-function attach(server) {
-  const { WebSocketServer } = require('ws');
-  wss = new WebSocketServer({ server });
+async function attachRedisAdapter(socketServer) {
+  const redisUrl = process.env.REDIS_URL;
 
-  wss.on('connection', async (client, request) => {
-    const url = new URL(request.url, 'http://localhost');
-    const user = await findUserByToken(url.searchParams.get('token'));
-
-    if (!user) {
-      client.close();
-      return;
+  if (!redisUrl) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('REDIS_URL is required when running realtime in production');
     }
+    return;
+  }
 
-    joinRoom(client, `user:${user.id}`);
-    client.on('close', () => leaveRooms(client));
+  pubClient = createClient({ url: redisUrl });
+  subClient = pubClient.duplicate();
+
+  await Promise.all([
+    pubClient.connect(),
+    subClient.connect(),
+  ]);
+
+  socketServer.adapter(createAdapter(pubClient, subClient));
+}
+
+async function attach(server) {
+  if (io) {
+    await close();
+  }
+
+  io = new Server(server, {
+    cors: {
+      origin: '*',
+    },
   });
 
-  return wss;
+  await attachRedisAdapter(io);
+
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+      const user = await findUserByToken(token);
+
+      if (!user) {
+        next(new Error('unauthorized'));
+        return;
+      }
+
+      socket.user = user;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  io.on('connection', (socket) => {
+    socket.join(`user:${socket.user.id}`);
+  });
+
+  return io;
 }
 
 function emitToRoom(room, event, payload) {
   testEvents.push({ room, event, payload });
 
-  const clients = rooms.get(room);
-  if (!clients) return;
+  if (!io) return;
 
-  const message = JSON.stringify({ event, payload });
-  clients.forEach((client) => {
-    if (client.readyState === 1) {
-      client.send(message);
-    }
-  });
+  io.to(room).emit('message', { event, payload });
 }
 
 function drainEvents() {
@@ -88,8 +100,24 @@ function drainEvents() {
 }
 
 function reset() {
-  rooms.clear();
   testEvents.splice(0, testEvents.length);
+}
+
+async function close() {
+  if (io) {
+    io.close();
+    io = null;
+  }
+
+  if (subClient) {
+    await subClient.quit();
+    subClient = null;
+  }
+
+  if (pubClient) {
+    await pubClient.quit();
+    pubClient = null;
+  }
 }
 
 module.exports = {
@@ -97,4 +125,5 @@ module.exports = {
   emitToRoom,
   drainEvents,
   reset,
+  close,
 };

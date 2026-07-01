@@ -179,7 +179,9 @@ const openApiSpec = {
         type: 'object',
         example: {
           connect: {
-            url: 'ws://localhost:3000?token=<session_token>',
+            url: 'http://localhost:3000',
+            client: "const socket = io('http://localhost:3000', { auth: { token: '<session_token>' } });",
+            listen: "socket.on('message', ({ event, payload }) => {});",
             room: 'user:{userId}',
             message_shape: { event: 'event.name', payload: {} },
           },
@@ -244,7 +246,7 @@ const openApiSpec = {
       get: {
         tags: ['Realtime'],
         summary: 'Tài liệu WebSocket realtime events',
-        description: 'Endpoint HTTP chỉ để đọc docs realtime trong Swagger. Kết nối thật dùng ws://localhost:3000?token=<session_token>.',
+        description: 'Endpoint HTTP chỉ để đọc docs realtime trong Swagger. Kết nối thật dùng socket.io-client với auth token.',
         responses: {
           200: {
             description: 'Danh sách realtime events và payload mẫu',
