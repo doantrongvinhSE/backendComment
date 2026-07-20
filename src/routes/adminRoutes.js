@@ -12,5 +12,8 @@ router.get('/users', adminController.listUsers);
 router.patch('/users/:id/password', adminController.changePassword);
 router.patch('/users/:id/disable', adminController.disableUser);
 router.patch('/users/:id/enable', adminController.enableUser);
+router.patch('/users/:id/post-limit', adminController.updatePostLimit);
+router.get('/maintenance', adminController.getMaintenance);
+router.patch('/maintenance', adminController.setMaintenance);
 
 module.exports = router;

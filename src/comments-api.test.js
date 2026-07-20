@@ -509,6 +509,7 @@ test('PATCH /me/comments/:commentId/status cập nhật status riêng của user
     data: {
       comment_id: comment.id,
       status: 'is_calling',
+      order_info: null,
     },
   });
 
@@ -525,6 +526,7 @@ test('PATCH /me/comments/:commentId/status cập nhật status riêng của user
           post_title: 'Bài status',
           post_original_link: 'https://www.facebook.com/reel/fb_status',
           status: 'is_calling',
+          order_info: null,
         },
       },
     },

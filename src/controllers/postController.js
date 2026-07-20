@@ -2,7 +2,7 @@ const postService = require('../services/postService');
 
 async function createUserPost(req, res, next) {
   try {
-    const result = await postService.createUserPost(req.user.id, req.body);
+    const result = await postService.createUserPost(req.ownerId, req.body);
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);
@@ -11,7 +11,7 @@ async function createUserPost(req, res, next) {
 
 async function listUserPosts(req, res, next) {
   try {
-    const result = await postService.listUserPosts(req.user.id, req.query);
+    const result = await postService.listUserPosts(req.ownerId, req.query);
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);
@@ -20,7 +20,7 @@ async function listUserPosts(req, res, next) {
 
 async function countTodayCommentedPosts(req, res, next) {
   try {
-    const result = await postService.countTodayCommentedPosts(req.user.id);
+    const result = await postService.countTodayCommentedPosts(req.ownerId);
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);
@@ -38,7 +38,7 @@ async function listPublicPosts(req, res, next) {
 
 async function getUserPost(req, res, next) {
   try {
-    const result = await postService.getUserPost(req.user.id, req.params.userPostId);
+    const result = await postService.getUserPost(req.ownerId, req.params.userPostId);
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);
@@ -47,7 +47,7 @@ async function getUserPost(req, res, next) {
 
 async function updateUserPost(req, res, next) {
   try {
-    const result = await postService.updateUserPost(req.user.id, req.params.userPostId, req.body);
+    const result = await postService.updateUserPost(req.ownerId, req.params.userPostId, req.body);
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);
@@ -56,7 +56,7 @@ async function updateUserPost(req, res, next) {
 
 async function deleteUserPost(req, res, next) {
   try {
-    const result = await postService.deleteUserPost(req.user.id, req.params.userPostId);
+    const result = await postService.deleteUserPost(req.ownerId, req.params.userPostId);
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);

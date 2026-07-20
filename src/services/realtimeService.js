@@ -19,14 +19,29 @@ async function findUserByToken(token) {
       revoked_at: null,
       expires_at: { [Op.gt]: new Date() },
     },
-    include: [{ model: User, as: 'user' }],
+    include: [{
+      model: User,
+      as: 'user',
+      include: [{ model: User, as: 'agency' }],
+    }],
   });
 
   if (!session || !session.user || !session.user.is_active) {
     return null;
   }
 
+  if (session.user.role === 'EMPLOYEE') {
+    const agency = session.user.agency;
+    if (!agency || !agency.is_active) {
+      return null;
+    }
+  }
+
   return session.user;
+}
+
+function resolveOwnerId(user) {
+  return user.role === 'EMPLOYEE' ? user.parent_user_id : user.id;
 }
 
 async function attachRedisAdapter(socketServer) {
@@ -81,7 +96,7 @@ async function attach(server) {
   });
 
   io.on('connection', (socket) => {
-    socket.join(`user:${socket.user.id}`);
+    socket.join(`user:${resolveOwnerId(socket.user)}`);
   });
 
   return io;

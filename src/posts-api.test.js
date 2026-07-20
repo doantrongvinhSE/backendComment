@@ -58,6 +58,7 @@ beforeEach(async () => {
   await UserPost.destroy({ where: {}, truncate: true });
   await Post.destroy({ where: {}, truncate: true });
   await UserSession.destroy({ where: {}, truncate: true });
+  await User.destroy({ where: { role: 'EMPLOYEE' } });
   await User.destroy({ where: {}, truncate: true });
 });
 
@@ -927,6 +928,72 @@ test('GET /me/posts sort today_comment_count coi cache khác ngày là 0', async
 
   expect(response.body.data.posts.map((post) => post.title)).toEqual(['Cache hôm nay số nhỏ', 'Cache cũ số lớn']);
   expect(response.body.data.posts.map((post) => post.today_comment_count)).toEqual([1, 0]);
+});
+
+test('user tạo post vượt quá post_limit thì trả 400 và không tạo dữ liệu', async () => {
+  const token = await loginUser('post_limit_owner');
+  const user = await User.findOne({ where: { username: 'post_limit_owner' } });
+  await user.update({ post_limit: 1 });
+
+  await request(app)
+    .post('/me/posts')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: 'Post 1', originalLink: 'https://www.facebook.com/reel/999000001' })
+    .expect(201);
+
+  const response = await request(app)
+    .post('/me/posts')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ title: 'Post 2', originalLink: 'https://www.facebook.com/reel/999000002' })
+    .expect(400);
+
+  expect(response.body).toEqual({
+    success: false,
+    message: 'Bạn đã đạt giới hạn số bài viết (1)',
+  });
+  expect(await UserPost.count({ where: { user_id: user.id } })).toBe(1);
+});
+
+test('employee tạo post tính theo post_limit của agency, không phải của employee', async () => {
+  const ownerToken = await loginUser('post_limit_agency');
+  const owner = await User.findOne({ where: { username: 'post_limit_agency' } });
+  await owner.update({ post_limit: 1 });
+
+  const employeePassword = await bcrypt.hash('password123', 10);
+  const employee = await User.create({
+    username: 'post_limit_employee',
+    password_hash: employeePassword,
+    name: 'Employee',
+    role: 'EMPLOYEE',
+    parent_user_id: owner.id,
+    permissions: { posts: true },
+  });
+
+  const employeeLoginResponse = await request(app)
+    .post('/auth/login')
+    .send({ username: 'post_limit_employee', password: 'password123' })
+    .expect(200);
+
+  const employeeToken = employeeLoginResponse.body.data.token;
+
+  await request(app)
+    .post('/me/posts')
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({ title: 'Post owner', originalLink: 'https://www.facebook.com/reel/999000003' })
+    .expect(201);
+
+  const response = await request(app)
+    .post('/me/posts')
+    .set('Authorization', `Bearer ${employeeToken}`)
+    .send({ title: 'Post employee', originalLink: 'https://www.facebook.com/reel/999000004' })
+    .expect(400);
+
+  expect(response.body).toEqual({
+    success: false,
+    message: 'Bạn đã đạt giới hạn số bài viết (1)',
+  });
+  expect(await UserPost.count({ where: { user_id: owner.id } })).toBe(1);
+  expect(employee.id).not.toBe(owner.id);
 });
 
 test('GET /me/posts sort theo phone_today', async () => {

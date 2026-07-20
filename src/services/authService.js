@@ -21,6 +21,14 @@ async function login({ username, password, deviceName, userAgent, ipAddress }) {
     return { status: 401, body: { success: false, message: 'Thông tin đăng nhập không hợp lệ' } };
   }
 
+  if (user.role === 'EMPLOYEE') {
+    const agency = user.parent_user_id ? await User.findByPk(user.parent_user_id) : null;
+
+    if (!agency || !agency.is_active) {
+      return { status: 401, body: { success: false, message: 'Thông tin đăng nhập không hợp lệ' } };
+    }
+  }
+
   const rawToken = createRawToken();
 
   await UserSession.create({

@@ -22,6 +22,26 @@ const UserComment = sequelize.define('UserComment', {
     allowNull: false,
     defaultValue: 'normal',
   },
+  order_customer_name: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
+  order_phone: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
+  order_address: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+  },
+  order_cod: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  order_note: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
 }, {
   tableName: 'user_comments',
   timestamps: false,

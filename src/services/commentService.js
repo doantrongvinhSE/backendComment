@@ -10,7 +10,23 @@ function notFoundResponse() {
 
 const COMMENT_STATUSES = ['normal', 'fail', 'success', 'is_calling'];
 
-function presentComment(comment, userPost, statusByCommentId) {
+function presentOrderInfo(userComment) {
+  if (!userComment || userComment.order_customer_name == null) {
+    return null;
+  }
+
+  return {
+    customer_name: userComment.order_customer_name,
+    phone: userComment.order_phone,
+    address: userComment.order_address,
+    cod: userComment.order_cod,
+    note: userComment.order_note,
+  };
+}
+
+function presentComment(comment, userPost, userCommentByCommentId) {
+  const userComment = userCommentByCommentId.get(comment.id);
+
   return {
     id: comment.id,
     post_title: userPost.title,
@@ -21,11 +37,12 @@ function presentComment(comment, userPost, statusByCommentId) {
     content: comment.content,
     phone: comment.phone,
     timestamp: comment.timestamp,
-    status: statusByCommentId.get(comment.id) || 'normal',
+    status: userComment ? userComment.status : 'normal',
+    order_info: presentOrderInfo(userComment),
   };
 }
 
-async function buildStatusMap(userId, commentIds) {
+async function buildUserCommentMap(userId, commentIds) {
   if (commentIds.length === 0) {
     return new Map();
   }
@@ -37,7 +54,7 @@ async function buildStatusMap(userId, commentIds) {
     },
   });
 
-  return new Map(userComments.map((userComment) => [userComment.comment_id, userComment.status]));
+  return new Map(userComments.map((userComment) => [userComment.comment_id, userComment]));
 }
 
 async function listCommentsByUserPost(userId, userPostId, query) {
@@ -61,14 +78,14 @@ async function listCommentsByUserPost(userId, userPostId, query) {
     limit: pagination.limit,
     offset: pagination.offset,
   });
-  const statusByCommentId = await buildStatusMap(userId, comments.map((comment) => comment.id));
+  const userCommentByCommentId = await buildUserCommentMap(userId, comments.map((comment) => comment.id));
 
   return {
     status: 200,
     body: {
       success: true,
       data: {
-        comments: comments.map((comment) => presentComment(comment, userPost, statusByCommentId)),
+        comments: comments.map((comment) => presentComment(comment, userPost, userCommentByCommentId)),
       },
       pagination: paginationMeta(pagination.page, pagination.limit, total),
     },
@@ -173,25 +190,30 @@ async function listAllUserComments(userId, query) {
       type: QueryTypes.SELECT,
     }),
   ]);
-  const statusByCommentId = await buildStatusMap(userId, comments.map((comment) => comment.id));
+  const userCommentByCommentId = await buildUserCommentMap(userId, comments.map((comment) => comment.id));
 
   return {
     status: 200,
     body: {
       success: true,
       data: {
-        comments: comments.map((comment) => ({
-          id: comment.id,
-          post_title: comment.post_title,
-          post_original_link: comment.post_original_link,
-          uid: comment.uid,
-          fb_name: comment.fb_name,
-          avatar_user: comment.avatar_user,
-          content: comment.content,
-          phone: comment.phone,
-          timestamp: comment.timestamp,
-          status: statusByCommentId.get(comment.id) || 'normal',
-        })),
+        comments: comments.map((comment) => {
+          const userComment = userCommentByCommentId.get(comment.id);
+
+          return {
+            id: comment.id,
+            post_title: comment.post_title,
+            post_original_link: comment.post_original_link,
+            uid: comment.uid,
+            fb_name: comment.fb_name,
+            avatar_user: comment.avatar_user,
+            content: comment.content,
+            phone: comment.phone,
+            timestamp: comment.timestamp,
+            status: userComment ? userComment.status : 'normal',
+            order_info: presentOrderInfo(userComment),
+          };
+        }),
       },
       pagination: paginationMeta(pagination.page, pagination.limit, Number(total)),
     },
@@ -217,9 +239,35 @@ async function countTodayUserComments(userId) {
   return { status: 200, body: { success: true, data: { count } } };
 }
 
-async function updateCommentStatus(userId, commentId, status) {
+function normalizeOrderInfo(orderInfo) {
+  if (orderInfo === undefined || orderInfo === null) {
+    return { fields: null };
+  }
+
+  if (typeof orderInfo !== 'object' || Array.isArray(orderInfo)) {
+    return { error: 'Thông tin đơn hàng không hợp lệ' };
+  }
+
+  return {
+    fields: {
+      order_customer_name: orderInfo.customer_name === undefined ? null : orderInfo.customer_name,
+      order_phone: orderInfo.phone === undefined ? null : orderInfo.phone,
+      order_address: orderInfo.address === undefined ? null : orderInfo.address,
+      order_cod: orderInfo.cod === undefined ? null : orderInfo.cod,
+      order_note: orderInfo.note === undefined ? null : orderInfo.note,
+    },
+  };
+}
+
+async function updateCommentStatus(userId, commentId, status, orderInfo) {
   if (!COMMENT_STATUSES.includes(status)) {
     return { status: 400, body: { success: false, message: 'Trạng thái không hợp lệ' } };
+  }
+
+  const normalized = normalizeOrderInfo(orderInfo);
+
+  if (normalized.error) {
+    return { status: 400, body: { success: false, message: normalized.error } };
   }
 
   const comment = await Comment.findByPk(commentId);
@@ -234,13 +282,15 @@ async function updateCommentStatus(userId, commentId, status) {
     return { status: 404, body: { success: false, message: 'Comment không tồn tại' } };
   }
 
-  const [userComment] = await UserComment.findOrCreate({
+  const updates = { status, ...(normalized.fields || {}) };
+
+  const [userComment, created] = await UserComment.findOrCreate({
     where: { user_id: userId, comment_id: commentId },
-    defaults: { status },
+    defaults: updates,
   });
 
-  if (userComment.status !== status) {
-    await userComment.update({ status });
+  if (!created) {
+    await userComment.update(updates);
   }
 
   realtimeService.emitToRoom(`user:${userId}`, 'comment.status_updated', {
@@ -250,6 +300,7 @@ async function updateCommentStatus(userId, commentId, status) {
       post_title: userPost.title,
       post_original_link: userPost.original_link,
       status,
+      order_info: presentOrderInfo(userComment),
     },
   });
 
@@ -260,6 +311,7 @@ async function updateCommentStatus(userId, commentId, status) {
       data: {
         comment_id: commentId,
         status,
+        order_info: presentOrderInfo(userComment),
       },
     },
   };

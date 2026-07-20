@@ -23,9 +23,23 @@ const User = sequelize.define('User', {
     allowNull: true,
   },
   role: {
-    type: DataTypes.ENUM('ADMIN', 'USER'),
+    type: DataTypes.ENUM('ADMIN', 'USER', 'EMPLOYEE'),
     allowNull: false,
     defaultValue: 'USER',
+  },
+  parent_user_id: {
+    type: integerType,
+    allowNull: true,
+  },
+  permissions: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+  },
+  post_limit: {
+    type: integerType,
+    allowNull: false,
+    defaultValue: 100,
   },
   is_active: {
     type: DataTypes.BOOLEAN,
@@ -45,9 +59,28 @@ const User = sequelize.define('User', {
 }, {
   tableName: 'users',
   timestamps: false,
+  indexes: [
+    { fields: ['parent_user_id'] },
+  ],
 });
 
 User.associate = (models) => {
+  User.belongsTo(models.User, {
+    foreignKey: 'parent_user_id',
+    targetKey: 'id',
+    as: 'agency',
+    onDelete: 'RESTRICT',
+    onUpdate: 'RESTRICT',
+  });
+
+  User.hasMany(models.User, {
+    foreignKey: 'parent_user_id',
+    sourceKey: 'id',
+    as: 'employees',
+    onDelete: 'RESTRICT',
+    onUpdate: 'RESTRICT',
+  });
+
   User.hasMany(models.UserSession, {
     foreignKey: 'user_id',
     sourceKey: 'id',

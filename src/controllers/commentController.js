@@ -2,7 +2,7 @@ const commentService = require('../services/commentService');
 
 async function listCommentsByUserPost(req, res, next) {
   try {
-    const result = await commentService.listCommentsByUserPost(req.user.id, req.params.userPostId, req.query);
+    const result = await commentService.listCommentsByUserPost(req.ownerId, req.params.userPostId, req.query);
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);
@@ -11,7 +11,7 @@ async function listCommentsByUserPost(req, res, next) {
 
 async function listAllUserComments(req, res, next) {
   try {
-    const result = await commentService.listAllUserComments(req.user.id, req.query);
+    const result = await commentService.listAllUserComments(req.ownerId, req.query);
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);
@@ -20,7 +20,7 @@ async function listAllUserComments(req, res, next) {
 
 async function countTodayUserComments(req, res, next) {
   try {
-    const result = await commentService.countTodayUserComments(req.user.id);
+    const result = await commentService.countTodayUserComments(req.ownerId);
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);
@@ -29,7 +29,7 @@ async function countTodayUserComments(req, res, next) {
 
 async function updateCommentStatus(req, res, next) {
   try {
-    const result = await commentService.updateCommentStatus(req.user.id, req.params.commentId, req.body.status);
+    const result = await commentService.updateCommentStatus(req.ownerId, req.params.commentId, req.body.status, req.body.order_info);
     return res.status(result.status).json(result.body);
   } catch (error) {
     return next(error);

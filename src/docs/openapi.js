@@ -40,6 +40,7 @@ const openApiSpec = {
     { name: 'Health' },
     { name: 'Auth' },
     { name: 'Admin' },
+    { name: 'Employees' },
     { name: 'Posts' },
     { name: 'Comments' },
     { name: 'Orders' },
@@ -128,6 +129,18 @@ const openApiSpec = {
           phone: { type: 'string', nullable: true, example: '0987654321' },
           timestamp: { type: 'string', format: 'date-time' },
           status: { type: 'string', enum: ['normal', 'fail', 'success', 'is_calling'], example: 'normal' },
+          order_info: {
+            type: 'object',
+            nullable: true,
+            description: 'Thông tin đơn hàng đã chốt từ comment này (null nếu chưa chốt đơn). Được lưu tự động khi tạo order kèm comment_id',
+            properties: {
+              customer_name: { type: 'string', example: 'Nguyễn Văn A' },
+              phone: { type: 'string', nullable: true, example: '0900000000' },
+              address: { type: 'string', nullable: true, example: 'Hà Nội' },
+              cod: { type: 'number', nullable: true, example: 150000 },
+              note: { type: 'string', nullable: true, example: 'Giao buổi sáng' },
+            },
+          },
         },
       },
       Saler: {
@@ -211,7 +224,8 @@ const openApiSpec = {
                   user_post_id: 12,
                   post_title: 'Bài livestream áo thun',
                   post_original_link: 'https://www.facebook.com/reel/123456789',
-                  status: 'is_calling',
+                  status: 'success',
+                  order_info: { customer_name: 'Nguyễn Văn A', phone: '0900000000', address: 'Hà Nội', cod: 150000, note: 'Giao buổi sáng' },
                 },
               },
             },
@@ -361,6 +375,120 @@ const openApiSpec = {
         responses: { 200: { description: 'User đã được mở khóa' }, 404: { description: 'User không tồn tại' } },
       }),
     },
+    '/admin/maintenance': {
+      get: bearerOperation(['Admin'], 'Admin lấy trạng thái bảo trì hiện tại', {
+        responses: { 200: { description: 'Trạng thái bảo trì' }, 403: { description: 'Không phải admin' } },
+      }),
+      patch: bearerOperation(['Admin'], 'Admin bật/tắt chế độ bảo trì', {
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['enabled'],
+                properties: {
+                  enabled: { type: 'boolean' },
+                  message: { type: 'string', nullable: true },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Đã cập nhật trạng thái bảo trì' }, 403: { description: 'Không phải admin' } },
+      }),
+    },
+    '/me/employees': {
+      post: bearerOperation(['Employees'], 'Đại lý tạo nhân viên (employee) với quyền theo module', {
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['username', 'password'],
+                properties: {
+                  username: { type: 'string' },
+                  password: { type: 'string' },
+                  name: { type: 'string' },
+                  permissions: {
+                    type: 'object',
+                    description: 'Quyền theo module, thiếu key nào thì mặc định false',
+                    properties: {
+                      posts: { type: 'boolean', default: false },
+                      comments: { type: 'boolean', default: false },
+                      orders: { type: 'boolean', default: false },
+                      salers: { type: 'boolean', default: false },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: { 201: { description: 'Nhân viên đã tạo' }, 400: { description: 'Input hoặc module không hợp lệ' }, 403: { description: 'Chỉ đại lý (role USER) được quản lý nhân viên' }, 409: { description: 'Username đã tồn tại' } },
+      }),
+      get: bearerOperation(['Employees'], 'Đại lý lấy danh sách nhân viên của mình', {
+        responses: { 200: { description: 'Danh sách nhân viên' }, 403: { description: 'Chỉ đại lý (role USER) được quản lý nhân viên' } },
+      }),
+    },
+    '/me/employees/{id}': {
+      get: bearerOperation(['Employees'], 'Đại lý xem chi tiết nhân viên', {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'Chi tiết nhân viên' }, 404: { description: 'Nhân viên không tồn tại' } },
+      }),
+      delete: bearerOperation(['Employees'], 'Đại lý xóa nhân viên (revoke toàn bộ session trước khi xóa)', {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'Nhân viên đã bị xóa' }, 404: { description: 'Nhân viên không tồn tại' } },
+      }),
+    },
+    '/me/employees/{id}/permissions': {
+      patch: bearerOperation(['Employees'], 'Đại lý cập nhật quyền module của nhân viên', {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['permissions'],
+                properties: {
+                  permissions: {
+                    type: 'object',
+                    properties: {
+                      posts: { type: 'boolean' },
+                      comments: { type: 'boolean' },
+                      orders: { type: 'boolean' },
+                      salers: { type: 'boolean' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Đã cập nhật quyền' }, 400: { description: 'Module không hợp lệ' }, 404: { description: 'Nhân viên không tồn tại' } },
+      }),
+    },
+    '/me/employees/{id}/password': {
+      patch: bearerOperation(['Employees'], 'Đại lý đổi mật khẩu nhân viên (revoke toàn bộ session)', {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['password'], properties: { password: { type: 'string' } } } } } },
+        responses: { 200: { description: 'Đã đổi mật khẩu' }, 404: { description: 'Nhân viên không tồn tại' } },
+      }),
+    },
+    '/me/employees/{id}/disable': {
+      patch: bearerOperation(['Employees'], 'Đại lý khóa nhân viên (revoke toàn bộ session)', {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'Nhân viên đã bị khóa' }, 404: { description: 'Nhân viên không tồn tại' } },
+      }),
+    },
+    '/me/employees/{id}/enable': {
+      patch: bearerOperation(['Employees'], 'Đại lý mở khóa nhân viên', {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'Nhân viên đã được mở khóa' }, 404: { description: 'Nhân viên không tồn tại' } },
+      }),
+    },
     '/me/posts': {
       post: bearerOperation(['Posts'], 'Tạo bài theo dõi cho user', {
         requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['title', 'originalLink'], properties: { title: { type: 'string' }, originalLink: { type: 'string' } } } } } },
@@ -402,13 +530,13 @@ const openApiSpec = {
     '/me/posts/{userPostId}/comments': {
       get: bearerOperation(['Comments'], 'Lấy comments của một post user đang theo dõi', {
         parameters: [{ name: 'userPostId', in: 'path', required: true, schema: { type: 'integer' } }, ...paginationParameters],
-        responses: { 200: { description: 'Danh sách comment' }, 404: { description: 'Post không tồn tại' } },
+        responses: { 200: { description: 'Danh sách comment (mỗi comment kèm status và order_info — xem schema Comment)', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { type: 'object', properties: { comments: { type: 'array', items: { $ref: '#/components/schemas/Comment' } } } } } } } } }, 404: { description: 'Post không tồn tại' } },
       }),
     },
     '/me/comments': {
       get: bearerOperation(['Comments'], 'Lấy tất cả comments thuộc post user đang theo dõi', {
         parameters: [...paginationParameters, { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Tìm theo số điện thoại comment' }, { name: 'phone', in: 'query', schema: { type: 'boolean' }, description: 'true để chỉ lấy comments có số điện thoại khác null và khác rỗng' }],
-        responses: { 200: { description: 'Danh sách comment' } },
+        responses: { 200: { description: 'Danh sách comment (mỗi comment kèm status và order_info — xem schema Comment)', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { type: 'object', properties: { comments: { type: 'array', items: { $ref: '#/components/schemas/Comment' } } } } } } } } } },
       }),
     },
     '/me/comments/count-today': {
@@ -417,10 +545,35 @@ const openApiSpec = {
       }),
     },
     '/me/comments/{commentId}/status': {
-      patch: bearerOperation(['Comments'], 'Cập nhật status comment riêng cho user', {
+      patch: bearerOperation(['Comments'], 'Cập nhật status comment riêng cho user (kèm order_info để lưu thông tin đơn đã chốt từ comment)', {
         parameters: [{ name: 'commentId', in: 'path', required: true, schema: { type: 'string' } }],
-        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['normal', 'fail', 'success', 'is_calling'] } } } } } },
-        responses: { 200: { description: 'Status đã cập nhật' }, 400: { description: 'Status không hợp lệ' }, 404: { description: 'Comment không tồn tại' } },
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['status'],
+                properties: {
+                  status: { type: 'string', enum: ['normal', 'fail', 'success', 'is_calling'] },
+                  order_info: {
+                    type: 'object',
+                    nullable: true,
+                    description: 'Gửi khi tạo đơn từ comment thành công để lưu thông tin đơn vào comment. Không gửi thì giữ nguyên thông tin đơn đã lưu trước đó',
+                    properties: {
+                      customer_name: { type: 'string', example: 'Nguyễn Văn A' },
+                      phone: { type: 'string', example: '0900000000' },
+                      address: { type: 'string', example: 'Hà Nội' },
+                      cod: { type: 'number', example: 150000 },
+                      note: { type: 'string', example: 'Giao buổi sáng' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'Status (và order_info nếu gửi) đã cập nhật' }, 400: { description: 'Status hoặc order_info không hợp lệ' }, 404: { description: 'Comment không tồn tại' } },
       }),
     },
     '/me/salers': {
@@ -429,7 +582,7 @@ const openApiSpec = {
       }),
     },
     '/me/orders': {
-      post: bearerOperation(['Orders'], 'Tạo order cho user', {
+      post: bearerOperation(['Orders'], 'Tạo order cho user. Employee luôn tạo được kể cả khi không có quyền module orders (dùng khi chốt đơn từ comment); các API orders khác vẫn yêu cầu quyền module orders', {
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Order' } } } },
         responses: { 201: { description: 'Order đã tạo' }, 400: { description: 'Input không hợp lệ' } },
       }),

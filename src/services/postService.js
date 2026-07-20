@@ -1,5 +1,7 @@
 const { Op, literal, QueryTypes } = require('sequelize');
-const { sequelize, Comment, Post, UserPost } = require('../models');
+const {
+  sequelize, Comment, Post, UserPost, User,
+} = require('../models');
 const { getPagination, paginationMeta } = require('../utils/pagination');
 const realtimeService = require('./realtimeService');
 const { vietnamDateKey, vietnamTodayRange } = require('../utils/vietnamTime');
@@ -41,6 +43,13 @@ function missingLinkResponse() {
 
 function duplicateLinkResponse() {
   return { status: 400, body: { success: false, message: 'Link bài viết đã tồn tại' } };
+}
+
+function postLimitReachedResponse(limit) {
+  return {
+    status: 400,
+    body: { success: false, message: `Bạn đã đạt giới hạn số bài viết (${limit})` },
+  };
 }
 
 function notFoundResponse() {
@@ -261,6 +270,13 @@ async function createUserPost(userId, { title, originalLink }) {
 
   if (!fbPostId) {
     return invalidLinkResponse();
+  }
+
+  const owner = await User.findByPk(userId);
+  const currentPostCount = await UserPost.count({ where: { user_id: userId } });
+
+  if (owner && currentPostCount >= owner.post_limit) {
+    return postLimitReachedResponse(owner.post_limit);
   }
 
   const [post] = await Post.findOrCreate({
