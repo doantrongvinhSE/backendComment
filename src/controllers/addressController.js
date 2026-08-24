@@ -1,5 +1,10 @@
 const { getPool } = require('../config/mysqlPool');
 
+// Trần số dòng trả về mỗi request, tránh bị lạm dụng (DoS/scraping) khi client
+// truyền limit rất lớn. Địa chỉ dùng lazy-load theo cấp (tỉnh/huyện/xã) nên 100
+// là dư sức cho mọi cấp.
+const MAX_ADDRESS_LIMIT = 100;
+
 function toEpochMs(value) {
   if (value === null || value === undefined) return null;
   const date = value instanceof Date ? value : new Date(value);
@@ -30,7 +35,7 @@ async function list(req, res, next) {
       }
     }
 
-    const limit = Math.max(1, Math.min(1000000000, parseInt(req.query.limit, 10) || 100));
+    const limit = Math.max(1, Math.min(MAX_ADDRESS_LIMIT, parseInt(req.query.limit, 10) || MAX_ADDRESS_LIMIT));
 
     let sql = 'SELECT * FROM locations WHERE ';
     const params = [];
